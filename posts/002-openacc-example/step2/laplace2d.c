@@ -77,7 +77,7 @@ int main(int argc, char** argv)
         error = 0.f;
 
 #pragma omp parallel for shared(m, n, Anew, A)
-#pragma acc kernels loop reduction(max:error)
+#pragma acc kernels
         for( int j = 1; j < n-1; j++)
         {
             for( int i = 1; i < m-1; i++ )
