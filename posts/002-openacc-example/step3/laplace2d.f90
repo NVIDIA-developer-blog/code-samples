@@ -15,7 +15,7 @@
 !
 
 program laplace
-#if _OPENACC
+#ifdef _OPENACC
   use openacc
 #endif
   implicit none
@@ -39,7 +39,7 @@ program laplace
   A(n-1,:) = 0.0_fp_kind
   A(:,0)   = y0
   A(:,m-1) = y0*exp(-pi)
-
+  
 #if _OPENACC
   call acc_init(acc_device_nvidia)
 #endif
@@ -64,18 +64,20 @@ program laplace
   end do
 !$omp end parallel do
 
-!$acc data copy(A, Anew)
+!$acc data copy(A), create(Anew)
   do while ( error .gt. tol .and. iter .lt. iter_max )
     error=0.0_fp_kind
 
 !$omp parallel do shared(m, n, Anew, A) reduction( max:error )
-!$acc kernels
+!$acc kernels loop gang(32), vector(16)
     do j=1,m-2
+!$acc loop gang(16), vector(32)
       do i=1,n-2
         Anew(i,j) = 0.25_fp_kind * ( A(i+1,j  ) + A(i-1,j  ) + &
                                      A(i  ,j-1) + A(i  ,j+1) )
         error = max( error, abs(Anew(i,j)-A(i,j)) )
       end do
+!$acc end loop
     end do
 !$acc end kernels
 !$omp end parallel do
@@ -84,11 +86,13 @@ program laplace
     iter = iter +1
 
 !$omp parallel do shared(m, n, Anew, A)
-!$acc kernels
+!$acc kernels loop
     do j=1,m-2
+!$acc loop gang(16), vector(32)
       do i=1,n-2
         A(i,j) = Anew(i,j)
       end do
+!$acc end loop
     end do
 !$acc end kernels
 !$omp end parallel do

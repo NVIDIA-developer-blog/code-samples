@@ -14,19 +14,20 @@
 #  limitations under the License.
 #
 
-F90       = pgf90
-ACCFLAGS = -acc -ta=nvidia -Minfo=accel -Mpreprocess
-OMPFLAGS = -fast -mp -Minfo -Mpreprocess
+CC       = pgcc
+CCFLAGS  = -I../common
+ACCFLAGS = -acc -ta=nvidia -Minfo=accel -lpgacc
+OMPFLAGS = -fast -mp -Minfo
 
-BIN =  laplace2d_f90_omp laplace2d_f90_acc
+BIN =  laplace2d_omp laplace2d_acc
 
 all: $(BIN)
 
-laplace2d_f90_acc: laplace2d.f90
-	$(F90) $(CCFLAGS) $(ACCFLAGS) -o $@ $<
+laplace2d_acc: laplace2d.c
+	$(CC) $(CCFLAGS) $(ACCFLAGS) -o $@ $<
 
-laplace2d_f90_omp: laplace2d.f90
-	$(F90) $(CCFLAGS) $(OMPFLAGS) -o $@ $<
+laplace2d_omp: laplace2d.c
+	$(CC) $(CCFLAGS) $(OMPFLAGS) -o $@ $<
 
 clean:
 	$(RM) $(BIN)
