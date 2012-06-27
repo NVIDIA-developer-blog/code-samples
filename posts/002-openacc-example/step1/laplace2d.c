@@ -16,36 +16,32 @@
 
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 #include "timer.h"
+
+#define NN 4096
+#define NM 4096
+
+float A[NN][NM];
+float Anew[NN][NM];
 
 int main(int argc, char** argv)
 {
-    int n = 4096;
-    int m = 4096;
-    int iter_max = 1000;
+    const int n = NN;
+    const int m = NM;
+    const int iter_max = 1000;
     
-    const float pi  = 2.0f * asinf(1.0f);
     const float tol = 1.0e-5f;
     float error     = 1.0f;
     
-    float A[n][m];
-    float Anew[n][m];
-    float y0[n];
-
     memset(A, 0, n * m * sizeof(float));
+    memset(Anew, 0, n * m * sizeof(float));
     
     // set boundary conditions
-    for (int i = 0; i < m; i++)
-    {
-        A[0][i]   = 0.f;
-        A[n-1][i] = 0.f;
-    }
-    
     for (int j = 0; j < n; j++)
     {
-        y0[j] = sinf(pi * j / (n-1));
-        A[j][0] = y0[j];
-        A[j][m-1] = y0[j]*expf(-pi);
+        A[j][0]    = 1.0f;
+        Anew[j][0] = 1.0f;
     }
     
     printf("Jacobi relaxation Calculation: %d x %d mesh\n", n, m);
@@ -53,25 +49,12 @@ int main(int argc, char** argv)
     StartTimer();
     int iter = 0;
     
-#pragma omp parallel for shared(Anew)
-    for (int i = 1; i < m; i++)
-    {
-       Anew[0][i]   = 0.f;
-       Anew[n-1][i] = 0.f;
-    }
-#pragma omp parallel for shared(Anew)    
-    for (int j = 1; j < n; j++)
-    {
-        Anew[j][0]   = y0[j];
-        Anew[j][m-1] = y0[j]*expf(-pi);
-    }
-    
     while ( error > tol && iter < iter_max )
     {
-        error = 0.f;
+        error = 0.0f;
 
-#pragma omp parallel for shared(m, n, Anew, A)
-#pragma acc kernels
+#pragma omp parallel for shared(Anew, A)
+#pragma acc kernels loop independent reduction(max:error)
         for( int j = 1; j < n-1; j++)
         {
             for( int i = 1; i < m-1; i++ )
@@ -82,7 +65,7 @@ int main(int argc, char** argv)
             }
         }
         
-#pragma omp parallel for shared(m, n, Anew, A)
+#pragma omp parallel for shared(Anew, A)
 #pragma acc kernels
         for( int j = 1; j < n-1; j++)
         {
