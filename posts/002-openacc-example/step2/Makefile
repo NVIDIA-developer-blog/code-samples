@@ -53,4 +53,4 @@ laplace2d_omp: laplace2d.c
 	$(OMP_COMMAND) $(CCFLAGS) -o $@ $< $(OMPFLAGS) 
 
 clean:
-	$(RM) $(BIN)
+	$(RM) $(BIN) *.hmf*
