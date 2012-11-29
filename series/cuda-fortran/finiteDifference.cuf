@@ -1,0 +1,627 @@
+!  Copyright 2012 NVIDIA Corporation
+!
+!  Licensed under the Apache License, Version 2.0 (the "License");
+!  you may not use this file except in compliance with the License.
+!  You may obtain a copy of the License at
+!
+!      http://www.apache.org/licenses/LICENSE-2.0
+!
+!  Unless required by applicable law or agreed to in writing, software
+!  distributed under the License is distributed on an "AS IS" BASIS,
+!  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+!  See the License for the specific language governing permissions and
+!  limitations under the License.
+
+
+
+module derivative_m
+  use cudafor
+
+  integer, parameter :: mx = 64, my = 64, mz = 64
+  real :: x(mx), y(my), z(mz)
+
+  ! shared memory tiles will be m*-by-*Pencils
+  ! sPencils is used when each thread calculates
+  !   the derivative at one point
+  ! lPencils is used for coalescing in y and z
+  !   where each thread has to calculate the
+  !   derivative at mutiple points
+
+  integer, parameter :: sPencils = 4   ! small # pencils
+  integer, parameter :: lPencils = 32  ! large # pencils
+  
+  type(dim3) :: grid_sp(3), block_sp(3)
+  type(dim3) :: grid_lp(3), block_lp(3)
+
+  ! stencil coefficients
+
+  real, constant :: ax_c, bx_c, cx_c, dx_c
+  real, constant :: ay_c, by_c, cy_c, dy_c
+  real, constant :: az_c, bz_c, cz_c, dz_c
+ 
+contains
+
+  ! host routine to set constant data
+
+  subroutine setDerivativeParameters()
+
+    implicit none
+
+    real :: dsinv
+    integer :: i, j, k
+
+    ! check to make sure dimensions are integral multiples of sPencils
+    if (mod(my,sPencils) /= 0) then
+       write(*,*) '"my" must be an integral multiple of sPencils'
+       stop
+    end if
+
+    if (mod(mx,sPencils) /= 0) then
+       write(*,*) '"mx" must be a multiple of sPencils (for y-deriv)'
+       stop
+    end if
+
+    if (mod(mz,sPencils) /= 0) then
+       write(*,*) '"mz" must be a multiple of sPencils (for z-deriv)'
+       stop
+    end if
+
+    if (mod(mx,lPencils) /= 0) then
+       write(*,*) '"mx" must be a multiple of lPencils'
+       stop
+    end if
+
+    if (mod(my,lPencils) /= 0) then
+       write(*,*) '"my" must be a multiple of lPencils'
+       stop
+    end if
+
+    ! stencil weights (for unit length problem)
+
+    dsinv = real(mx-1)
+    do i = 1, mx
+       x(i) = (i-1.)/(mx-1.)
+    enddo
+    ax_c =  4./  5. * dsinv
+    bx_c = -1./  5. * dsinv
+    cx_c =  4./105. * dsinv
+    dx_c = -1./280. * dsinv
+
+    dsinv = real(my-1)
+    do j = 1, my
+       y(j) = (j-1.)/(my-1.)
+    enddo
+    ay_c =  4./  5. * dsinv
+    by_c = -1./  5. * dsinv
+    cy_c =  4./105. * dsinv
+    dy_c = -1./280. * dsinv
+
+    dsinv = real(mz-1)
+    do k = 1, mz
+       z(k) = (k-1.)/(mz-1.)
+    enddo
+    az_c =  4./  5. * dsinv
+    bz_c = -1./  5. * dsinv
+    cz_c =  4./105. * dsinv
+    dz_c = -1./280. * dsinv
+
+    ! Execution configurations for small and 
+    ! large pencil tiles
+
+    grid_sp(1) = dim3(my/sPencils,mz,1)
+    block_sp(1) = dim3(mx,sPencils,1)
+
+    grid_lp(1) = dim3(my/lPencils,mz,1)
+    block_lp(1) = dim3(mx,sPencils,1)
+
+    grid_sp(2) = dim3(mx/sPencils,mz,1)
+    block_sp(2) = dim3(sPencils,my,1)
+
+    grid_lp(2) = dim3(mx/lPencils,mz,1)
+    ! we want to use the same number of threads as above.
+    ! so if we use lPencils instead of sPencils in one
+    ! dimension, we multiply the other by sPencils/lPencils
+    block_lp(2) = dim3(lPencils, my*sPencils/lPencils,1)
+
+    grid_sp(3) = dim3(mx/sPencils,my,1)    
+    block_sp(3) = dim3(sPencils,mz,1)
+
+    grid_lp(3) = dim3(mx/lPencils,my,1)    
+    block_lp(3) = dim3(lPencils, mz*sPencils/lPencils,1)
+
+  end subroutine setDerivativeParameters
+
+  ! -------------
+  ! x derivatives
+  ! -------------
+
+  attributes(global) subroutine derivative_x(f, df)
+    implicit none
+
+    real, intent(in) :: f(mx,my,mz)
+    real, intent(out) :: df(mx,my,mz)
+
+    real, shared :: f_s(-3:mx+4,sPencils)
+
+    integer :: i,j,k,j_l
+
+    i = threadIdx%x
+    j = (blockIdx%x-1)*blockDim%y + threadIdx%y
+    ! j_l is local variant of j for accessing shared memory
+    j_l = threadIdx%y            
+    k = blockIdx%y
+
+    f_s(i,j_l) = f(i,j,k)
+
+    call syncthreads()
+
+    ! fill in periodic images in shared memory array 
+
+    if (i <= 4) then
+       f_s(i-4, j_l) = f_s(mx+i-5,j_l) 
+       f_s(mx+i,j_l) = f_s(i+1,   j_l)   
+    endif
+
+    call syncthreads()
+
+    df(i,j,k) = &
+         (ax_c *( f_s(i+1,j_l) - f_s(i-1,j_l) )   &
+         +bx_c *( f_s(i+2,j_l) - f_s(i-2,j_l) )   &
+         +cx_c *( f_s(i+3,j_l) - f_s(i-3,j_l) )   &
+         +dx_c *( f_s(i+4,j_l) - f_s(i-4,j_l) ))
+ 
+  end subroutine derivative_x
+
+  ! this version uses a 64x32 shared memory tile, 
+  ! still with 64*sPencils threads
+
+  attributes(global) subroutine derivative_x_lPencils(f, df)
+    implicit none
+
+    real, intent(in) :: f(mx,my,mz)
+    real, intent(out) :: df(mx,my,mz)
+
+    real, shared :: f_s(-3:mx+4,lPencils)
+
+    integer :: i,j,k,j_l,jBase
+
+    i = threadIdx%x
+    jBase = (blockIdx%x-1)*lPencils
+    k = blockIdx%y
+
+    do j_l = threadIdx%y, lPencils, blockDim%y
+       j = jBase + j_l
+       f_s(i,j_l) = f(i,j,k)
+    enddo
+
+    call syncthreads()
+
+    ! fill in periodic images in shared memory array 
+
+    if (i <= 4) then
+       do j_l = threadIdx%y, lPencils, blockDim%y
+          f_s(i-4, j_l) = f_s(mx+i-5,j_l) 
+          f_s(mx+i,j_l) = f_s(i+1,   j_l)   
+       enddo
+    endif
+
+    call syncthreads()
+
+    do j_l = threadIdx%y, lPencils, blockDim%y
+       j = jBase + j_l
+       df(i,j,k) = &
+            (ax_c *( f_s(i+1,j_l) - f_s(i-1,j_l) )   &
+            +bx_c *( f_s(i+2,j_l) - f_s(i-2,j_l) )   &
+            +cx_c *( f_s(i+3,j_l) - f_s(i-3,j_l) )   &
+            +dx_c *( f_s(i+4,j_l) - f_s(i-4,j_l) ))
+    enddo
+ 
+  end subroutine derivative_x_lPencils
+
+  ! -------------
+  ! y derivatives
+  ! -------------
+
+  attributes(global) subroutine derivative_y(f, df)
+    implicit none
+
+    real, intent(in) :: f(mx,my,mz)
+    real, intent(out) :: df(mx,my,mz)
+
+    real, shared :: f_s(sPencils,-3:my+4)
+
+    integer :: i,i_l,j,k
+
+    i = (blockIdx%x-1)*blockDim%x + threadIdx%x
+    i_l = threadIdx%x
+    j = threadIdx%y
+    k = blockIdx%y
+
+    f_s(i_l,j) = f(i,j,k)
+
+    call syncthreads()
+
+    if (j <= 4) then
+       f_s(i_l,j-4) = f_s(i_l,my+j-5) 
+       f_s(i_l,my+j) = f_s(i_l,j+1)   
+    endif
+
+    call syncthreads()
+
+    df(i,j,k) = &
+         (ay_c *( f_s(i_l,j+1) - f_s(i_l,j-1) )   &
+         +by_c *( f_s(i_l,j+2) - f_s(i_l,j-2) )   &
+         +cy_c *( f_s(i_l,j+3) - f_s(i_l,j-3) )   &
+         +dy_c *( f_s(i_l,j+4) - f_s(i_l,j-4) )) 
+
+  end subroutine derivative_y
+
+  ! y derivative using a tile of 32x64
+  ! launch with thread block of 32x8
+
+  attributes(global) subroutine derivative_y_lPencils(f, df)
+    implicit none
+
+    real, intent(in) :: f(mx,my,mz)
+    real, intent(out) :: df(mx,my,mz)
+
+    real, shared :: f_s(lPencils,-3:my+4)
+
+    integer :: i,j,k,i_l
+
+    i_l = threadIdx%x
+    i = (blockIdx%x-1)*blockDim%x + threadIdx%x
+    k = blockIdx%y
+    
+    do j = threadIdx%y, my, blockDim%y
+       f_s(i_l,j) = f(i,j,k)
+    enddo
+    
+    call syncthreads()
+
+    j = threadIdx%y
+    if (j <= 4) then
+       f_s(i_l,j-4) = f_s(i_l,my+j-5) 
+       f_s(i_l,my+j) = f_s(i_l,j+1)   
+    endif
+
+    call syncthreads()
+
+    do j = threadIdx%y, my, blockDim%y
+       df(i,j,k) = &
+            (ay_c *( f_s(i_l,j+1) - f_s(i_l,j-1) )   &
+            +by_c *( f_s(i_l,j+2) - f_s(i_l,j-2) )   &
+            +cy_c *( f_s(i_l,j+3) - f_s(i_l,j-3) )   &
+            +dy_c *( f_s(i_l,j+4) - f_s(i_l,j-4) )) 
+    enddo
+
+  end subroutine derivative_y_lPencils
+
+  ! ------------
+  ! z derivative
+  ! ------------
+
+  attributes(global) subroutine derivative_z(f, df)
+    implicit none
+
+    real, intent(in) :: f(mx,my,mz)
+    real, intent(out) :: df(mx,my,mz)
+
+    real, shared :: f_s(sPencils,-3:mz+4)
+
+    integer :: i,i_l,j,k
+
+    i = (blockIdx%x-1)*blockDim%x + threadIdx%x
+    i_l = threadIdx%x
+    j = blockIdx%y
+    k = threadIdx%y
+
+    f_s(i_l,k) = f(i,j,k)
+
+    call syncthreads()
+
+    if (k <= 4) then
+       f_s(i_l,k-4) = f_s(i_l,mz+k-5) 
+       f_s(i_l,mz+k) = f_s(i_l,k+1)   
+    endif
+
+    call syncthreads()
+
+    df(i,j,k) = &
+         (az_c *( f_s(i_l,k+1) - f_s(i_l,k-1) )   &
+         +bz_c *( f_s(i_l,k+2) - f_s(i_l,k-2) )   &
+         +cz_c *( f_s(i_l,k+3) - f_s(i_l,k-3) )   &
+         +dz_c *( f_s(i_l,k+4) - f_s(i_l,k-4) ))
+ 
+  end subroutine derivative_z
+
+
+  attributes(global) subroutine derivative_z_lPencils(f, df)
+    implicit none
+
+    real, intent(in) :: f(mx,my,mz)
+    real, intent(out) :: df(mx,my,mz)
+
+    real, shared :: f_s(lPencils,-3:mz+4)
+
+    integer :: i,i_l,j,k
+
+    i = (blockIdx%x-1)*blockDim%x + threadIdx%x
+    i_l = threadIdx%x
+    j = blockIdx%y
+
+    do k = threadIdx%y, mz, blockDim%y
+       f_s(i_l,k) = f(i,j,k)
+    enddo
+
+    call syncthreads()
+
+    k = threadIdx%y
+    if (k <= 4) then
+       f_s(i_l,k-4) = f_s(i_l,mz+k-5) 
+       f_s(i_l,mz+k) = f_s(i_l,k+1)   
+    endif
+
+    call syncthreads()
+
+    do k = threadIdx%y, mz, blockDim%y
+       df(i,j,k) = &
+            (az_c *( f_s(i_l,k+1) - f_s(i_l,k-1) )   &
+            +bz_c *( f_s(i_l,k+2) - f_s(i_l,k-2) )   &
+            +cz_c *( f_s(i_l,k+3) - f_s(i_l,k-3) )   &
+            +dz_c *( f_s(i_l,k+4) - f_s(i_l,k-4) ))
+    enddo
+  end subroutine derivative_z_lPencils
+
+end module derivative_m
+
+
+
+! This the main host code for the finite difference 
+! example.  The kernels are contained in the derivative_m module
+
+program derivativeTest
+  use cudafor
+  use derivative_m
+
+  implicit none
+
+  real, parameter :: fx = 1.0, fy = 1.0, fz = 1.0
+  integer, parameter :: nReps = 20
+
+  real :: f(mx,my,mz), df(mx,my,mz), sol(mx,my,mz)
+  real, device :: f_d(mx,my,mz), df_d(mx,my,mz)
+  real :: twopi, error, maxError
+  type(cudaEvent) :: startEvent, stopEvent
+  type(cudaDeviceProp) :: prop
+  
+  real :: time
+  integer :: i, j, k, istat
+
+  ! Print device and precision
+
+  istat = cudaGetDeviceProperties(prop, 0)
+  write(*,"(/,'Device Name: ',a)") trim(prop%name)
+  write(*,"('Compute Capability: ',i0,'.',i0)") &
+       prop%major, prop%minor
+
+  ! initialize
+
+  twopi = 8.*atan(1.d0)
+  call setDerivativeParameters()
+
+  istat = cudaEventCreate(startEvent)
+  istat = cudaEventCreate(stopEvent)
+
+  ! x-derivative using 64x4 tile
+    
+  write(*,"(/,'x derivatives')")
+
+  do i = 1, mx
+     f(i,:,:) = cos(fx*twopi*(i-1.)/(mx-1))
+  enddo
+  f_d = f
+  df_d = 0
+
+  call derivative_x<<<grid_sp(1),block_sp(1)>>>(f_d, df_d)
+  istat = cudaEventRecord(startEvent,0)
+  do i = 1, nReps
+     call derivative_x<<<grid_sp(1),block_sp(1)>>>(f_d, df_d)
+  enddo
+  istat = cudaEventRecord(stopEvent,0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+
+  df = df_d
+  
+  do i = 1, mx
+     sol(i,:,:) = -fx*twopi*sin(fx*twopi*(i-1.)/(mx-1))
+  enddo
+  
+  error = sqrt(sum((sol-df)**2)/(mx*my*mz))
+  maxError = maxval(abs(sol-df))
+
+  write(*,"(/,'  Using shared memory tile of x-y: ', i0, 'x', i0)") &
+       mx, sPencils
+  write(*,*) '  RMS error: ', error
+  write(*,*) '  MAX error: ', maxError
+  write(*,*) '  Average time (ms): ', time/nReps
+  write(*,*) '  Average Bandwidth (GB/s): ', &
+       2.*1000*sizeof(f)/(1024**3 * time/nReps)
+
+  ! x-derivative - uses extended tile (lPencils)
+      
+  do i = 1, mx
+     f(i,:,:) = cos(fx*twopi*(i-1.)/(mx-1))
+  enddo
+  f_d = f
+  df_d = 0
+
+  call derivative_x_lPencils<<<grid_lp(1),block_lp(1)>>>(f_d, df_d)
+  istat = cudaEventRecord(startEvent,0)
+  do i = 1, nReps
+     call derivative_x_lPencils<<<grid_lp(1),block_lp(1)>>>(f_d, df_d)
+  enddo
+  istat = cudaEventRecord(stopEvent,0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+
+  df = df_d
+  
+  do i = 1, mx
+     sol(i,:,:) = -fx*twopi*sin(fx*twopi*(i-1.)/(mx-1))
+  enddo
+  
+  error = sqrt(sum((sol-df)**2)/(mx*my*mz))
+  maxError = maxval(abs(sol-df))
+
+  write(*,"(/,'  Using shared memory tile of x-y: ', i0, 'x', i0)") &
+       mx, lPencils
+  write(*,*) '  RMS error: ', error
+  write(*,*) '  MAX error: ', maxError
+  write(*,*) '  Average time (ms): ', time/nReps
+  write(*,*) '  Average Bandwidth (GB/s): ', &
+       2.*1000*sizeof(f)/(1024**3 * time/nReps)
+
+  ! y-derivative
+    
+  write(*,"(/,'y derivatives')")
+
+  do j = 1, my
+     f(:,j,:) = cos(fy*twopi*(j-1.)/(my-1))
+  enddo     
+  f_d = f
+  df_d = 0
+
+  call derivative_y<<<grid_sp(2), block_sp(2)>>>(f_d, df_d)
+  istat = cudaEventRecord(startEvent,0)
+  do i = 1, nReps
+     call derivative_y<<<grid_sp(2), block_sp(2)>>>(f_d, df_d)
+  enddo
+  istat = cudaEventRecord(stopEvent,0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+
+  df = df_d  
+
+  do j = 1, my
+     sol(:,j,:) = -fy*twopi*sin(fy*twopi*(j-1.)/(my-1))
+  enddo
+  
+  error = sqrt(sum((sol-df)**2)/(mx*my*mz))
+  maxError = maxval(abs(sol-df))
+  
+  write(*,"(/,'  Using shared memory tile of x-y: ', i0, 'x', i0)") &
+       sPencils, my
+  write(*,*) '  RMS error: ', error
+  write(*,*) '  MAX error: ', maxError
+  write(*,*) '  Average time (ms): ', time/nReps
+  write(*,*) '  Average Bandwidth (GB/s): ', &
+       2.*1000*sizeof(f)/(1024**3 * time/nReps)
+
+  ! y-derivative lPencils
+    
+  do j = 1, my
+     f(:,j,:) = cos(fy*twopi*(j-1.)/(my-1))
+  enddo     
+  f_d = f
+  df_d = 0
+
+  call derivative_y_lPencils<<<grid_lp(2), block_lp(2)>>>(f_d, df_d)
+  istat = cudaEventRecord(startEvent,0)
+  do i = 1, nReps
+     call derivative_y_lPencils<<<grid_lp(2), block_lp(2)>>>(f_d, df_d)
+  enddo
+  istat = cudaEventRecord(stopEvent,0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+
+  df = df_d  
+
+  do j = 1, my
+     sol(:,j,:) = -fy*twopi*sin(fy*twopi*(j-1.)/(my-1))
+  enddo
+  
+  error = sqrt(sum((sol-df)**2)/(mx*my*mz))
+  maxError = maxval(abs(sol-df))
+  
+  write(*,"(/,'  Using shared memory tile of x-y: ', i0, 'x', i0)") &
+       lPencils, my
+  write(*,*) '  RMS error: ', error
+  write(*,*) '  MAX error: ', maxError
+  write(*,*) '  Average time (ms): ', time/nReps
+  write(*,*) '  Average Bandwidth (GB/s): ', &
+       2.*1000*sizeof(f)/(1024**3 * time/nReps)
+
+  ! z-derivative
+
+  write(*,"(/,'z derivatives')")
+
+  do k = 1, mz
+     f(:,:,k) = cos(fz*twopi*(k-1.)/(mz-1))
+  enddo     
+  f_d = f
+  df_d = 0
+
+  call derivative_z<<<grid_sp(3),block_sp(3)>>>(f_d, df_d)
+  istat = cudaEventRecord(startEvent,0)
+  do i = 1, nReps
+     call derivative_z<<<grid_sp(3),block_sp(3)>>>(f_d, df_d)
+  enddo
+  istat = cudaEventRecord(stopEvent,0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+
+  df = df_d  
+
+  do k = 1, mz
+     sol(:,:,k) = -fz*twopi*sin(fz*twopi*(k-1.)/(mz-1))
+  enddo
+  
+  error = sqrt(sum((sol-df)**2)/(mx*my*mz))
+  maxError = maxval(abs(sol-df))
+
+  write(*,"(/,'  Using shared memory tile of x-z: ', i0, 'x', i0)") &
+       sPencils, mz
+  write(*,*) '  RMS error: ', error
+  write(*,*) '  MAX error: ', maxError
+  write(*,*) '  Average time (ms): ', time/nReps
+  write(*,*) '  Average Bandwidth (GB/s): ', &
+       2.*1000*sizeof(f)/(1024**3 * time/nReps)
+
+  ! z-derivative lPencils
+
+  do k = 1, mz
+     f(:,:,k) = cos(fz*twopi*(k-1.)/(mz-1))
+  enddo     
+  f_d = f
+  df_d = 0
+
+  call derivative_z_lPencils<<<grid_lp(3),block_lp(3)>>>(f_d, df_d)
+  istat = cudaEventRecord(startEvent,0)
+  do i = 1, nReps
+     call derivative_z_lPencils<<<grid_lp(3),block_lp(3)>>>(f_d, df_d)
+  enddo
+  istat = cudaEventRecord(stopEvent,0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+
+  df = df_d  
+
+  do k = 1, mz
+     sol(:,:,k) = -fz*twopi*sin(fz*twopi*(k-1.)/(mz-1))
+  enddo
+  
+  error = sqrt(sum((sol-df)**2)/(mx*my*mz))
+  maxError = maxval(abs(sol-df))
+
+  write(*,"(/,'  Using shared memory tile of x-z: ', i0, 'x', i0)") &
+       lPencils, mz
+  write(*,*) '  RMS error: ', error
+  write(*,*) '  MAX error: ', maxError
+  write(*,*) '  Average time (ms): ', time/nReps
+  write(*,*) '  Average Bandwidth (GB/s): ', &
+       2.*1000*sizeof(f)/(1024**3 * time/nReps)
+  write(*,*)
+
+end program derivativeTest

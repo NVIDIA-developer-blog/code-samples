@@ -1,0 +1,378 @@
+!  Copyright 2012 NVIDIA Corporation
+!
+!  Licensed under the Apache License, Version 2.0 (the "License");
+!  you may not use this file except in compliance with the License.
+!  You may obtain a copy of the License at
+!
+!      http://www.apache.org/licenses/LICENSE-2.0
+!
+!  Unless required by applicable law or agreed to in writing, software
+!  distributed under the License is distributed on an "AS IS" BASIS,
+!  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+!  See the License for the specific language governing permissions and
+!  limitations under the License.
+
+
+module kernels_m
+  implicit none
+
+  integer, parameter :: TILE_DIM = 32
+  integer, parameter :: BLOCK_ROWS = 8
+  integer, parameter :: NUM_REPS = 100  
+  integer, parameter :: nx = 1024, ny = 1024
+  integer, parameter :: mem_size = nx*ny*4
+
+contains
+
+  ! simple copy kernel
+  !
+  ! used as reference case representing best 
+  ! effictive bandwidth
+
+  attributes(global) subroutine copy(odata, idata)
+    implicit none
+    real, intent(out) :: odata(nx,ny)
+    real, intent(in) :: idata(nx,ny)
+    integer :: x, y, j
+
+    x = (blockIdx%x-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx%y-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       odata(x,y+j) = idata(x,y+j)
+    end do
+  end subroutine copy
+
+  ! copy kernel using shared memory
+  !
+  ! also used as reference case, demonstrating effect of
+  ! using shared memory
+
+  attributes(global) subroutine copySharedMem(odata, idata)
+    implicit none
+    real, intent(out) :: odata(nx,ny)
+    real, intent(in) :: idata(nx,ny)
+    real, shared :: tile(TILE_DIM, TILE_DIM)
+    integer :: x, y, j
+
+    x = (blockIdx%x-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx%y-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       tile(threadIdx%x, threadIdx%y+j) = idata(x,y+j)
+    end do
+
+    call syncthreads()
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       odata(x,y+j) = tile(threadIdx%x, threadIdx%y+j)          
+    end do
+  end subroutine copySharedMem
+
+  ! naive transpose
+  !
+  ! simplest transpose - doesn't use shared memory
+  ! reads from global memory are coalesced but not writes
+
+  attributes(global) subroutine transposeNaive(odata, idata)
+    implicit none
+    real, intent(out) :: odata(ny,nx)
+    real, intent(in) :: idata(nx,ny)
+    integer :: x, y, j
+
+    x = (blockIdx%x-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx%y-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       odata(y+j,x) = idata(x,y+j)     
+    end do
+  end subroutine transposeNaive
+
+  ! coalesced transpose
+  !
+  ! uses shared memory to achieve coalesing in both reads 
+  ! and writes
+  !
+  ! tile size causes shared memory bank conflicts
+
+  attributes(global) subroutine transposeCoalesced(odata, idata)
+    implicit none
+    real, intent(out) :: odata(ny,nx)
+    real, intent(in) :: idata(nx,ny)
+    real, shared :: tile(TILE_DIM, TILE_DIM)
+    integer :: x, y, j
+
+    x = (blockIdx%x-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx%y-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       tile(threadIdx%x, threadIdx%y+j) = idata(x,y+j)
+    end do
+
+    call syncthreads()
+
+    x = (blockIdx%y-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx%x-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       odata(x,y+j) = tile(threadIdx%y+j, threadIdx%x)          
+    end do
+  end subroutine transposeCoalesced
+
+  ! no bank-conflict transpose
+  !
+  ! same as transposeCoalesced except the first tile dimension is padded 
+  ! to avoid shared memory bank conflicts
+
+  attributes(global) subroutine transposeNoBankConflicts(odata, idata)
+    implicit none
+    real, intent(out) :: odata(ny,nx)
+    real, intent(in) :: idata(nx,ny)
+    real, shared :: tile(TILE_DIM+1, TILE_DIM)
+    integer :: x, y, j
+
+    x = (blockIdx%x-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx%y-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       tile(threadIdx%x, threadIdx%y+j) = idata(x,y+j)
+    end do
+
+    call syncthreads()
+
+    x = (blockIdx%y-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx%x-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       odata(x,y+j) = tile(threadIdx%y+j, threadIdx%x)          
+    end do
+  end subroutine transposeNoBankConflicts
+
+  ! Diagonal reordering 
+  !
+  ! This version should be used on cards of compute capability 1.3
+  ! to avoid partition camping.  It essentially reschedules the 
+  ! order in which blocks are executed so requests for global
+  ! memory access by active blocks are spread evenly amongst 
+  ! partitions
+
+  attributes(global) subroutine transposeDiagonal(odata, idata)
+    implicit none
+    real, intent(out) :: odata(ny,nx)
+    real, intent(in) :: idata(nx,ny)
+    real, shared :: tile(TILE_DIM+1, TILE_DIM)
+    integer :: x, y, j
+    integer :: blockIdx_x, blockIdx_y
+
+    if (nx==ny) then
+       blockIdx_y = blockIdx%x
+       blockIdx_x = mod(blockIdx%x+blockIdx%y-2,gridDim%x)+1
+    else
+       x = blockIdx%x + gridDim%x*(blockIdx%y-1)
+       blockIdx_y = mod(x-1,gridDim%y)+1
+       blockIdx_x = mod((x-1)/gridDim%y+blockIdx_y-1,gridDim%x)+1
+    endif
+
+    x = (blockIdx_x-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx_y-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       tile(threadIdx%x, threadIdx%y+j) = idata(x,y+j)
+    end do
+
+    call syncthreads()
+
+    x = (blockIdx_y-1) * TILE_DIM + threadIdx%x
+    y = (blockIdx_x-1) * TILE_DIM + threadIdx%y
+
+    do j = 0, TILE_DIM-1, BLOCK_ROWS
+       odata(x,y+j) = tile(threadIdx%y+j, threadIdx%x)          
+    end do
+  end subroutine transposeDiagonal
+  
+end module kernels_m
+
+
+
+program transposes
+  use cudafor
+  use kernels_m 
+  implicit none
+  type (dim3) :: dimGrid, dimBlock
+  type (cudaEvent) :: startEvent, stopEvent
+  real :: time
+
+  real :: h_idata(nx,ny), h_cdata(nx,ny), h_tdata(ny,nx), gold(ny,nx)
+  real, device :: d_idata(nx,ny), d_cdata(nx,ny), d_tdata(ny,nx)
+  type(cudaDeviceProp) :: prop
+
+  integer :: i, j, istat
+
+  ! check parameters and calculate execution configuration
+  if (mod(nx, TILE_DIM) /= 0 .or. mod(ny, TILE_DIM) /= 0) then
+     write(*,*) 'nx and ny must be a multiple of TILE_DIM'
+     stop
+  end if
+
+  if (mod(TILE_DIM, BLOCK_ROWS) /= 0) then
+     write(*,*) 'TILE_DIM must be a multiple of BLOCK_ROWS'
+     stop
+  end if
+
+  dimGrid = dim3(nx/TILE_DIM, ny/TILE_DIM, 1)
+  dimBlock = dim3(TILE_DIM, BLOCK_ROWS, 1)
+
+  ! write parameters
+  istat = cudaGetDeviceProperties(prop, 0)
+  write(*,*)
+  write(*,'(''Device: '', a)') trim(prop%name)
+  write(*,'(''Matrix size:'', i5, i5, '',  Block size:'', i3, i3, '',  Tile size:'', i3, i3)') &
+       nx, ny, TILE_DIM, BLOCK_ROWS, TILE_DIM, TILE_DIM
+
+  write(*,'(''dimGrid:'', i4,i4,i4, '',   dimBlock:'', i4,i4,i4)') &
+       dimGrid%x, dimGrid%y, dimGrid%z, dimBlock%x, dimBlock%y, dimBlock%z
+
+  ! host
+  do j = 1, ny
+     do i = 1, nx
+        h_idata(i,j) = i+(j-1)*nx
+     enddo
+  enddo
+  gold = transpose(h_idata)
+
+  ! device
+  d_idata = h_idata
+  d_tdata = -1.0
+  d_cdata = -1.0
+
+  ! events for timing
+  istat = cudaEventCreate(startEvent)
+  istat = cudaEventCreate(stopEvent)
+
+  ! ------------
+  ! time kernels
+  ! ------------
+
+  write(*,'(/,a25,a25, a25)') 'Routine', 'Bandwidth (GB/s)'
+
+  ! ----
+  ! copy 
+  ! ----
+
+  write(*,'(a25)', advance='NO') 'copy'
+  ! warmup
+  call copy<<<dimGrid, dimBlock>>>(d_cdata, d_idata)
+  istat = cudaEventRecord(startEvent, 0)
+  do i=1, NUM_REPS
+     call copy<<<dimGrid, dimBlock>>>(d_cdata, d_idata)
+  end do
+  istat = cudaEventRecord(stopEvent, 0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+  h_cdata = d_cdata
+  call postprocess(h_idata, h_cdata, time)
+
+  ! -------------
+  ! copySharedMem 
+  ! -------------
+
+  write(*,'(a25)', advance='NO') 'shared memory copy'
+  d_cdata = -1.0
+  ! warmup
+  call copySharedMem<<<dimGrid, dimBlock>>>(d_cdata, d_idata)
+  istat = cudaEventRecord(startEvent, 0)
+  do i=1, NUM_REPS
+     call copySharedMem<<<dimGrid, dimBlock>>>(d_cdata, d_idata)
+  end do
+  istat = cudaEventRecord(stopEvent, 0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+  h_cdata = d_cdata
+  call postprocess(h_idata, h_cdata, time)
+
+  ! --------------
+  ! transposeNaive 
+  ! --------------
+
+  write(*,'(a25)', advance='NO') 'naive transpose'
+  d_tdata = -1.0
+  ! warmup
+  call transposeNaive<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  istat = cudaEventRecord(startEvent, 0)
+  do i=1, NUM_REPS
+     call transposeNaive<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  end do
+  istat = cudaEventRecord(stopEvent, 0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+  h_tdata = d_tdata
+  call postprocess(gold, h_tdata, time)
+
+  ! ------------------
+  ! transposeCoalesced 
+  ! ------------------
+
+  write(*,'(a25)', advance='NO') 'coalesced transpose'
+  d_tdata = -1.0
+  ! warmup
+  call transposeCoalesced<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  istat = cudaEventRecord(startEvent, 0)
+  do i=1, NUM_REPS
+     call transposeCoalesced<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  end do
+  istat = cudaEventRecord(stopEvent, 0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+  h_tdata = d_tdata
+  call postprocess(gold, h_tdata, time)
+
+  ! ------------------------
+  ! transposeNoBankConflicts
+  ! ------------------------
+
+  write(*,'(a25)', advance='NO') 'conflict-free transpose'
+  d_tdata = -1.0
+  ! warmup
+  call transposeNoBankConflicts<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  istat = cudaEventRecord(startEvent, 0)
+  do i=1, NUM_REPS
+     call transposeNoBankConflicts<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  end do
+  istat = cudaEventRecord(stopEvent, 0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+  h_tdata = d_tdata
+  call postprocess(gold, h_tdata, time)
+
+  ! ----------------
+  ! transposeDigonal
+  ! ----------------
+
+  write(*,'(a25)', advance='NO') 'diagonal transpose'
+  d_tdata = -1.0
+  ! warmup
+  call transposeDiagonal<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  istat = cudaEventRecord(startEvent, 0)
+  do i=1, NUM_REPS
+     call transposeDiagonal<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
+  end do
+  istat = cudaEventRecord(stopEvent, 0)
+  istat = cudaEventSynchronize(stopEvent)
+  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
+  h_tdata = d_tdata
+  call postprocess(gold, h_tdata, time)
+
+  ! cleanup
+  istat = cudaEventDestroy(startEvent)
+  istat = cudaEventDestroy(stopEvent)  
+
+contains
+  subroutine postprocess(ref, res, t)
+    real, intent(in) :: ref(:,:), res(:,:), t          ! host reference, result and time
+    if (all(res == ref)) then
+       write(*,'(f20.2)') 2.*1000*mem_size/(1024**3 * t/NUM_REPS)
+    else
+       write(*,'(a20)') '*** Failed ***'
+    end if
+  end subroutine postprocess
+end program transposes
