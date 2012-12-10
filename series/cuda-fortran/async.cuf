@@ -114,30 +114,6 @@ program testAsync
   write(*,*) 'Time for asynchronous V2 transfer and execute (ms): ', time
   write(*,*) '  max error: ', maxval(abs(a-1.0))
 
-  ! asynchronous version 3: 
-  ! loop over copy, loop over {kernel, event}, loop over copy
-  a = 0
-  istat = cudaEventRecord(startEvent,0)
-  do i = 1, nStreams
-     offset = (i-1)*streamSize
-     istat = cudaMemcpyAsync(a_d(offset+1),a(offset+1),streamSize,stream(i))
-  enddo
-  do i = 1, nStreams
-     offset = (i-1)*streamSize
-     call kernel<<<streamSize/blockSize, blockSize, &
-                   0, stream(i)>>>(a_d,offset)
-     istat = cudaEventRecord(dummyEvent, stream(i))
-  enddo
-  do i = 1, nStreams
-     offset = (i-1)*streamSize
-     istat = cudaMemcpyAsync(a(offset+1),a_d(offset+1),streamSize,stream(i))
-  enddo
-  istat = cudaEventRecord(stopEvent, 0)
-  istat = cudaEventSynchronize(stopEvent)
-  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
-  write(*,*) 'Time for asynchronous V3 transfer and execute (ms): ', time
-  write(*,*) '  max error: ', maxval(abs(a-1.0))
-
   ! cleanup
   istat = cudaEventDestroy(startEvent)
   istat = cudaEventDestroy(stopEvent)
