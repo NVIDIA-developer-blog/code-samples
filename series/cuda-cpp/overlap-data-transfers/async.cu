@@ -41,7 +41,7 @@ float maxError(float *a, int n)
 {
   float maxE = 0;
   for (int i = 0; i < n; i++) {
-    float error = abs(a[i]-1.0f);
+    float error = fabs(a[i]-1.0f);
     if (error > maxE) maxE = error;
   }
   return maxE;
