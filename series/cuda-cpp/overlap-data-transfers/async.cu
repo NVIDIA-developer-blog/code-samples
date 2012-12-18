@@ -54,7 +54,7 @@ int main(int argc, char **argv)
   const int streamSize = n / nStreams;
   const int streamBytes = streamSize * sizeof(float);
   const int bytes = n * sizeof(float);
-  
+   
   int devId = 0;
   if (argc > 1) devId = atoi(argv[1]);
 
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
   checkCuda( cudaEventSynchronize(stopEvent) );
   checkCuda( cudaEventElapsedTime(&ms, startEvent, stopEvent) );
   printf("Time for sequential transfer and execute (ms): %f\n", ms);
-  printf("  max error: %f\n", maxError(a, n));
+  printf("  max error: %e\n", maxError(a, n));
 
   // asynchronous version 1: loop over {copy, kernel, copy}
   memset(a, 0, bytes);
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
   checkCuda( cudaEventSynchronize(stopEvent) );
   checkCuda( cudaEventElapsedTime(&ms, startEvent, stopEvent) );
   printf("Time for asynchronous V1 transfer and execute (ms): %f\n", ms);
-  printf("  max error: %f\n", maxError(a, n));
+  printf("  max error: %e\n", maxError(a, n));
 
   // asynchronous version 2: 
   // loop over copy, loop over kernel, loop over copy
@@ -137,7 +137,7 @@ int main(int argc, char **argv)
   checkCuda( cudaEventSynchronize(stopEvent) );
   checkCuda( cudaEventElapsedTime(&ms, startEvent, stopEvent) );
   printf("Time for asynchronous V2 transfer and execute (ms): %f\n", ms);
-  printf("  max error: %f\n", maxError(a, n));
+  printf("  max error: %e\n", maxError(a, n));
 
   // cleanup
   checkCuda( cudaEventDestroy(startEvent) );
