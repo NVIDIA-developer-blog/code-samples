@@ -147,52 +147,7 @@ contains
        odata(x,y+j) = tile(threadIdx%y+j, threadIdx%x)          
     end do
   end subroutine transposeNoBankConflicts
-
-  ! Diagonal reordering 
-  !
-  ! This version should be used on cards of compute capability 1.3
-  ! to avoid partition camping.  It essentially reschedules the 
-  ! order in which blocks are executed so requests for global
-  ! memory access by active blocks are spread evenly amongst 
-  ! partitions
-
-  attributes(global) subroutine transposeDiagonal(odata, idata)
-    implicit none
-    real, intent(out) :: odata(ny,nx)
-    real, intent(in) :: idata(nx,ny)
-    real, shared :: tile(TILE_DIM+1, TILE_DIM)
-    integer :: x, y, j
-    integer :: blockIdx_x, blockIdx_y
-
-    if (nx==ny) then
-       blockIdx_y = blockIdx%x
-       blockIdx_x = mod(blockIdx%x+blockIdx%y-2,gridDim%x)+1
-    else
-       x = blockIdx%x + gridDim%x*(blockIdx%y-1)
-       blockIdx_y = mod(x-1,gridDim%y)+1
-       blockIdx_x = mod((x-1)/gridDim%y+blockIdx_y-1,gridDim%x)+1
-    endif
-
-    x = (blockIdx_x-1) * TILE_DIM + threadIdx%x
-    y = (blockIdx_y-1) * TILE_DIM + threadIdx%y
-
-    do j = 0, TILE_DIM-1, BLOCK_ROWS
-       tile(threadIdx%x, threadIdx%y+j) = idata(x,y+j)
-    end do
-
-    call syncthreads()
-
-    x = (blockIdx_y-1) * TILE_DIM + threadIdx%x
-    y = (blockIdx_x-1) * TILE_DIM + threadIdx%y
-
-    do j = 0, TILE_DIM-1, BLOCK_ROWS
-       odata(x,y+j) = tile(threadIdx%y+j, threadIdx%x)          
-    end do
-  end subroutine transposeDiagonal
-  
-end module kernels_m
-
-
+end module
 
 program transposes
   use cudafor
@@ -337,24 +292,6 @@ program transposes
   istat = cudaEventRecord(startEvent, 0)
   do i=1, NUM_REPS
      call transposeNoBankConflicts<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
-  end do
-  istat = cudaEventRecord(stopEvent, 0)
-  istat = cudaEventSynchronize(stopEvent)
-  istat = cudaEventElapsedTime(time, startEvent, stopEvent)
-  h_tdata = d_tdata
-  call postprocess(gold, h_tdata, time)
-
-  ! ----------------
-  ! transposeDigonal
-  ! ----------------
-
-  write(*,'(a25)', advance='NO') 'diagonal transpose'
-  d_tdata = -1.0
-  ! warmup
-  call transposeDiagonal<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
-  istat = cudaEventRecord(startEvent, 0)
-  do i=1, NUM_REPS
-     call transposeDiagonal<<<dimGrid, dimBlock>>>(d_tdata, d_idata)
   end do
   istat = cudaEventRecord(stopEvent, 0)
   istat = cudaEventSynchronize(stopEvent)
