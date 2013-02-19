@@ -307,7 +307,7 @@ contains
   subroutine postprocess(ref, res, t)
     real, intent(in) :: ref(:,:), res(:,:), t          ! host reference, result and time
     if (all(res == ref)) then
-       write(*,'(f20.2)') 2.*1000*mem_size/(1024**3 * t/NUM_REPS)
+       write(*,'(f20.2)') 2.*1000*mem_size/(10**9 * t/NUM_REPS)
     else
        write(*,'(a20)') '*** Failed ***'
     end if
