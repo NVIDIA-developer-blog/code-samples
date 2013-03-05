@@ -39,8 +39,7 @@ const int mx = 64, my = 64, mz = 64;
 const int sPencils = 4;  // small # pencils
 const int lPencils = 32; // large # pencils
   
-dim3 grid_sp[3], block_sp[3];
-dim3 grid_lp[3], block_lp[3];
+dim3 grid[3][2], block[3][2];
 
 // stencil coefficients
 __constant__ float c_ax, c_bx, c_cx, c_dx;
@@ -97,26 +96,26 @@ void setDerivativeParameters()
 
   // Execution configurations for small and large pencil tiles
 
-  grid_sp[0]  = dim3(my / sPencils, mz, 1);
-  block_sp[0] = dim3(mx, sPencils, 1);
+  grid[0][0]  = dim3(my / sPencils, mz, 1);
+  block[0][0] = dim3(mx, sPencils, 1);
 
-  grid_lp[0]  = dim3(my / lPencils, mz, 1);
-  block_lp[0] = dim3(mx, sPencils, 1);
+  grid[0][1]  = dim3(my / lPencils, mz, 1);
+  block[0][1] = dim3(mx, sPencils, 1);
 
-  grid_sp[1]  = dim3(mx / sPencils, mz, 1);
-  block_sp[1] = dim3(sPencils, my, 1);
+  grid[1][0]  = dim3(mx / sPencils, mz, 1);
+  block[1][0] = dim3(sPencils, my, 1);
 
-  grid_lp[1]  = dim3(mx / lPencils, mz, 1);
+  grid[1][1]  = dim3(mx / lPencils, mz, 1);
   // we want to use the same number of threads as above,
   // so when we use lPencils instead of sPencils in one
   // dimension, we multiply the other by sPencils/lPencils
-  block_lp[1] = dim3(lPencils, my * sPencils / lPencils, 1);
+  block[1][1] = dim3(lPencils, my * sPencils / lPencils, 1);
 
-  grid_sp[2]  = dim3(mx / sPencils, my, 1);
-  block_sp[2] = dim3(sPencils, mz, 1);
+  grid[2][0]  = dim3(mx / sPencils, my, 1);
+  block[2][0] = dim3(sPencils, mz, 1);
 
-  grid_lp[2]  = dim3(mx / lPencils, my, 1);
-  block_lp[2] = dim3(lPencils, mz * sPencils / lPencils, 1);
+  grid[2][1]  = dim3(mx / lPencils, my, 1);
+  block[2][1] = dim3(lPencils, mz * sPencils / lPencils, 1);
 }
 
 void initInput(float *f, int dim)
@@ -429,6 +428,20 @@ void runTest(int dimension)
                               sPencils, mz,
                               lPencils, mz };
 
+  float f[mx*my*mz];
+  float df[mx*my*mz];
+  float sol[mx*my*mz];
+  
+  initInput(f, dimension);
+  initSol(sol, dimension);
+
+  // device arrays
+  int bytes = mx*my*mz * sizeof(float);
+  float *d_f, *d_df;
+  checkCuda( cudaMalloc((void**)&d_f, bytes) );
+  checkCuda( cudaMalloc((void**)&d_df, bytes) );
+
+  const int nReps = 20;
   float milliseconds;
   cudaEvent_t startEvent, stopEvent;
   checkCuda( cudaEventCreate(&startEvent) );
@@ -438,30 +451,14 @@ void runTest(int dimension)
 
   printf("%c derivatives\n\n", (char)(0x58 + dimension));
 
-  float f[mx*my*mz];
-  float df[mx*my*mz];
-  float sol[mx*my*mz];
-  
-  initInput(f, dimension);
-  initSol(sol, dimension);
-
-  const int nReps = 20;
-
-  // device arrays
-  int bytes = mx*my*mz * sizeof(float);
-  float *d_f, *d_df;
-  checkCuda( cudaMalloc((void**)&d_f, bytes) );
-  checkCuda( cudaMalloc((void**)&d_df, bytes) );
-
-  for (int fp = 0; fp < 2; fp++) {
-  
+  for (int fp = 0; fp < 2; fp++) { 
     checkCuda( cudaMemcpy(d_f, f, bytes, cudaMemcpyHostToDevice) );  
     checkCuda( cudaMemset(d_df, 0, bytes) );
     
-    fpDeriv[fp]<<<grid_sp[dimension],block_sp[dimension]>>>(d_f, d_df); // warm up
+    fpDeriv[fp]<<<grid[dimension][fp],block[dimension][fp]>>>(d_f, d_df); // warm up
     checkCuda( cudaEventRecord(startEvent, 0) );
     for (int i = 0; i < nReps; i++)
-       fpDeriv[fp]<<<grid_sp[dimension],block_sp[dimension]>>>(d_f, d_df);
+       fpDeriv[fp]<<<grid[dimension][fp],block[dimension][fp]>>>(d_f, d_df);
     
     checkCuda( cudaEventRecord(stopEvent, 0) );
     checkCuda( cudaEventSynchronize(stopEvent) );
