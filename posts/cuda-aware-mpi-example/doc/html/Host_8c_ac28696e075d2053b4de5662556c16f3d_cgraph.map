@@ -1,0 +1,6 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$Device_8cu.html#a95a52e3c2e58d2d94403a0dce2e29686" title="The host wrapper for copying (packing) the values on the left and right side of the data block to sep..." alt="" coords="173,5,376,35"/>
+<area shape="rect" id="node7" href="$CUDA__Aware__MPI_8c.html#a1dc0674ebcbca5a781885f2204d78251" title="Exchange halo values between 2 direct neighbors This is the main difference between the normal CUDA &amp;..." alt="" coords="217,59,332,88"/>
+<area shape="rect" id="node9" href="$Device_8cu.html#a3b641f8b5d521a230416b64d8b809324" title="The host wrapper for copying (unpacking) the values from the halo buffers to the left and right side ..." alt="" coords="196,112,353,141"/>
+<area shape="rect" id="node5" href="$Device_8cu.html#a87c5ce86d74764a06a13b73dff013870" title="The host function for checking the result of a CUDA API call." alt="" coords="424,59,539,88"/>
+</map>

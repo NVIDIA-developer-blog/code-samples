@@ -1,0 +1,9 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$Device_8cu.html#a08324d1c9b1ee7193242670ba4b97d88" title="The host wrapper for one Jacobi iteration." alt="" coords="143,5,263,35"/>
+<area shape="rect" id="node7" href="$Device_8cu.html#aeaebe085afbffaa0d6bcd77fa16ceb97" title="The host wrapper for copying the updated block over the old one, after a Jacobi iteration finishes..." alt="" coords="140,59,265,88"/>
+<area shape="rect" id="node10" href="$Host_8c.html#ac28696e075d2053b4de5662556c16f3d" title="This performs the exchanging of all necessary halos between 2 neighboring MPI processes." alt="" coords="144,137,261,167"/>
+<area shape="rect" id="node5" href="$Device_8cu.html#a87c5ce86d74764a06a13b73dff013870" title="The host function for checking the result of a CUDA API call." alt="" coords="565,83,680,112"/>
+<area shape="rect" id="node12" href="$Device_8cu.html#a95a52e3c2e58d2d94403a0dce2e29686" title="The host wrapper for copying (packing) the values on the left and right side of the data block to sep..." alt="" coords="315,108,517,137"/>
+<area shape="rect" id="node15" href="$CUDA__Aware__MPI_8c.html#a1dc0674ebcbca5a781885f2204d78251" title="Exchange halo values between 2 direct neighbors This is the main difference between the normal CUDA &amp;..." alt="" coords="359,161,473,191"/>
+<area shape="rect" id="node17" href="$Device_8cu.html#a3b641f8b5d521a230416b64d8b809324" title="The host wrapper for copying (unpacking) the values from the halo buffers to the left and right side ..." alt="" coords="337,215,495,244"/>
+</map>

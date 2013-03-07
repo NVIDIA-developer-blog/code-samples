@@ -1,0 +1,8 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$CUDA__Aware__MPI_8c.html" title="The implementation details for the CUDA&#45;aware MPI version." alt="" coords="5,83,152,112"/>
+<area shape="rect" id="node5" href="$CUDA__Normal__MPI_8c.html" title="The implementation details for the normal CUDA &amp; MPI version." alt="" coords="176,83,328,112"/>
+<area shape="rect" id="node7" href="$Device_8cu.html" title="This contains the device kernels as well as the host wrappers for these kernels." alt="" coords="352,83,432,112"/>
+<area shape="rect" id="node9" href="$Host_8c.html" title="This contains the host functions for data allocations, message passing and host&#45;side computations..." alt="" coords="456,83,517,112"/>
+<area shape="rect" id="node11" href="$Input_8c.html" title="This contains the command&#45;line argument parser and support functions." alt="" coords="541,83,603,112"/>
+<area shape="rect" id="node13" href="$Jacobi_8c.html" title="This contains the application entry point." alt="" coords="627,83,696,112"/>
+</map>

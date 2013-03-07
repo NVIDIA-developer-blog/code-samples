@@ -1,0 +1,6 @@
+var searchData=
+[
+  ['parsecommandlinearguments',['ParseCommandLineArguments',['../Input_8c.html#a243a9fb9128b70313b30d3f082cc0a61',1,'ParseCommandLineArguments(int argc, char **argv, int rank, int size, int2 *domSize, int2 *topSize, int *useFastSwap):&#160;Input.c'],['../Jacobi_8h.html#a243a9fb9128b70313b30d3f082cc0a61',1,'ParseCommandLineArguments(int argc, char **argv, int rank, int size, int2 *domSize, int2 *topSize, int *useFastSwap):&#160;Input.c']]],
+  ['postrunjacobi',['PostRunJacobi',['../Host_8c.html#a29316e4a0e49080875975ead1809fdbb',1,'PostRunJacobi(MPI_Comm cartComm, int rank, int size, const int2 *topSize, const int2 *domSize, int iterations, int useFastSwap, double timerStart, double avgTransferTime):&#160;Host.c'],['../Jacobi_8h.html#a29316e4a0e49080875975ead1809fdbb',1,'PostRunJacobi(MPI_Comm cartComm, int rank, int size, const int2 *topSize, const int2 *domSize, int iterations, int useFastSwap, double timerStart, double avgTransferTime):&#160;Host.c']]],
+  ['prerunjacobi',['PreRunJacobi',['../Host_8c.html#a053b144f9d3b11ad9b3563447876629f',1,'PreRunJacobi(MPI_Comm cartComm, int rank, int size, double *timerStart):&#160;Host.c'],['../Jacobi_8h.html#a053b144f9d3b11ad9b3563447876629f',1,'PreRunJacobi(MPI_Comm cartComm, int rank, int size, double *timerStart):&#160;Host.c']]]
+];

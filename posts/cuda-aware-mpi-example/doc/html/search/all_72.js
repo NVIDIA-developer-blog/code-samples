@@ -1,0 +1,4 @@
+var searchData=
+[
+  ['runjacobi',['RunJacobi',['../Host_8c.html#a52ea6f92f186de790a55fdf700026dd9',1,'RunJacobi(MPI_Comm cartComm, int rank, int size, const int2 *domSize, const int2 *topIndex, const int *neighbors, int useFastSwap, real *devBlocks[2], real *devSideEdges[2], real *devHaloLines[2], real *hostSendLines[2], real *hostRecvLines[2], real *devResidue, cudaStream_t copyStream, int *iterations, double *avgTransferTime):&#160;Host.c'],['../Jacobi_8h.html#a52ea6f92f186de790a55fdf700026dd9',1,'RunJacobi(MPI_Comm cartComm, int rank, int size, const int2 *domSize, const int2 *topIndex, const int *neighbors, int useFastSwap, real *devBlocks[2], real *devSideEdges[2], real *devHaloLines[2], real *hostSendLines[2], real *hostRecvLines[2], real *devResidue, cudaStream_t copyStream, int *iterations, double *avgTransferTime):&#160;Host.c']]]
+];
