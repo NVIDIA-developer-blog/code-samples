@@ -89,6 +89,6 @@ MV2_USE_CUDA=1 mpiexec -np 2 --exports=MV2_USE_CUDA ./jacobi_cuda_aware_mpi -t 2
 4) Documentation
 ================
 
-Documentation for this project may be generated automatically using Doxygen by calling make doc. A configuration file for this may be found in the "doc" folder. If 
-Doxygen is not available, the same folder also contains pregenerated documentation. 
+Documentation for this project may be generated automatically using Doxygen by calling make doc. A configuration file for this may be found in the "src" folder. If 
+Doxygen is not available, the doc folder also contains pregenerated documentation. 
 
