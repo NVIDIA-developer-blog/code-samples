@@ -261,7 +261,7 @@ void InitializeDataChunk(int topSizeY, int topIdxY, const int2 * domSize, const 
 	SafeCudaCall(cudaMalloc((void **)devResidue, sizeof(real)));
 	SafeCudaCall(cudaMemcpy(devBlocks[0], hostBlock, blockBytes, cudaMemcpyHostToDevice));
 	SafeCudaCall(cudaMemcpy(devBlocks[1], devBlocks[0], blockBytes, cudaMemcpyDeviceToDevice));
-	SafeCudaCall(cudaStreamCreateWithFlags(copyStream, cudaStreamNonBlocking));			
+	SafeCudaCall(cudaStreamCreate(copyStream));			
 
 	SafeHostFree(hostBlock);
 }

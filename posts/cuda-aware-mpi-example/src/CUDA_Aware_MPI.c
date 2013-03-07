@@ -23,7 +23,7 @@
 void SetDeviceBeforeInit()
 {
 	char * localRankStr = NULL;
-	int rank = 0, devCount = 0;	
+	int rank = 0, devCount = 0;
 
 	// We extract the local rank initialization using an environment variable
 	if ((localRankStr = getenv(ENV_LOCAL_RANK)) != NULL)
