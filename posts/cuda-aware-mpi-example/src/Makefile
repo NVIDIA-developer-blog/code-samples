@@ -18,7 +18,7 @@ MPICFLAGS=-I${MPI_HOME}/include
 CUDACFLAGS=-I${CUDA_INSTALL_PATH}/include
 
 GENCODE_SM13    := -gencode arch=compute_13,code=sm_13
-GENCODE_SM20    := -gencode arch=compute_20,code=sm_20 -gencode arch=compute_20,code=compute_20
+GENCODE_SM20    := -gencode arch=compute_20,code=\"sm_20,compute_20\"
 GENCODE_SM30    := -gencode arch=compute_30,code=sm_30
 GENCODE_SM35    := -gencode arch=compute_35,code=sm_35
 GENCODE_FLAGS   := $(GENCODE_SM13) $(GENCODE_SM20)
