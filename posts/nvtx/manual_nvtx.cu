@@ -6,7 +6,7 @@
 const uint32_t colors[] = { 0x0000ff00, 0x000000ff, 0x00ffff00, 0x00ff00ff, 0x0000ffff, 0x00ff0000, 0x00ffffff };
 const int num_colors = sizeof(colors)/sizeof(uint32_t);
 
-#define START_RANGE(name,cid) { \
+#define PUSH_RANGE(name,cid) { \
 	int color_id = cid; \
 	color_id = color_id%num_colors;\
 	nvtxEventAttributes_t eventAttrib = {0}; \
@@ -18,10 +18,10 @@ const int num_colors = sizeof(colors)/sizeof(uint32_t);
 	eventAttrib.message.ascii = name; \
 	nvtxRangePushEx(&eventAttrib); \
 }
-#define END_RANGE nvtxRangePop();
+#define POP_RANGE nvtxRangePop();
 #else
-#define START_RANGE(name,cid)
-#define END_RANGE
+#define PUSH_RANGE(name,cid)
+#define POP_RANGE
 #endif
 
 __global__ void init_data_kernel( int n, double* x)
@@ -57,17 +57,17 @@ __global__ void check_results_kernel( int n, double correctvalue, double * x )
 
 void init_host_data( int n, double * x )
 {
-	START_RANGE("init_host_data",1)
+	PUSH_RANGE("init_host_data",1)
 	for (int i=0; i<n; ++i)
 	{
 		x[i] = i;
 	}
-	END_RANGE
+	POP_RANGE
 }
 
 void init_data(int n, double* x, double* x_d, double* y_d)
 {
-	START_RANGE("init_data",2)
+	PUSH_RANGE("init_data",2)
 	cudaStream_t copy_stream;
 	cudaStream_t compute_stream;
 	cudaStreamCreate(&copy_stream);
@@ -81,27 +81,27 @@ void init_data(int n, double* x, double* x_d, double* y_d)
 
 	cudaStreamDestroy(compute_stream);
 	cudaStreamDestroy(copy_stream);
-	END_RANGE
+	POP_RANGE
 }
 
 void daxpy(int n, double a, double* x_d, double* y_d)
 {
-	START_RANGE("daxpy",3)
+	PUSH_RANGE("daxpy",3)
 	daxpy_kernel<<<ceil(n/256),256>>>(n,a,x_d,y_d);
 	cudaDeviceSynchronize();
-	END_RANGE
+	POP_RANGE
 }
 
 void check_results( int n, double correctvalue, double* x_d )
 {
-	START_RANGE("check_results",4)
+	PUSH_RANGE("check_results",4)
 	check_results_kernel<<<ceil(n/256),256>>>(n,correctvalue,x_d);
-	END_RANGE
+	POP_RANGE
 }
 
 void run_test(int n)
 {
-	START_RANGE("run_test",0)
+	PUSH_RANGE("run_test",0)
 	double* x;
 	double* x_d;
 	double* y_d;
@@ -122,7 +122,7 @@ void run_test(int n)
 	cudaFree(x_d);
 	cudaFreeHost(x);
 	cudaDeviceSynchronize();
-	END_RANGE
+	POP_RANGE
 }
 
 int main()
