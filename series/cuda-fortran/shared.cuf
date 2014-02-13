@@ -1,0 +1,92 @@
+module reverse_m
+  implicit none
+  integer, device :: n_d
+contains
+  attributes(global) subroutine staticReverse(d)
+    real :: d(:) 
+    integer :: t, tr
+    real, shared :: s(64) 
+    t = threadIdx%x
+    tr = size(d)-t+1
+    s(t) = d(t)
+    call syncthreads() 
+    d(t) = s(tr)
+  end subroutine staticReverse
+
+  attributes(global) subroutine dynamicReverse1(d)
+    real :: d(:) 
+    integer :: t, tr
+    real, shared :: s(*)
+    t = threadIdx%x
+    tr = size(d)-t+1
+    s(t) = d(t)
+    call syncthreads() 
+    d(t) = s(tr)
+  end subroutine dynamicReverse1
+
+  attributes(global) subroutine dynamicReverse2(d, nSize)
+    real :: d(nSize) 
+    integer, value :: nSize
+    integer :: t, tr
+    real, shared :: s(nSize)
+    t = threadIdx%x
+    tr = nSize-t+1
+    s(t) = d(t)
+    call syncthreads() 
+    d(t) = s(tr)
+  end subroutine dynamicReverse2
+
+  attributes(global) subroutine dynamicReverse3(d)
+    real :: d(n_d) 
+    real, shared :: s(n_d)
+    integer :: t, tr
+    t = threadIdx%x
+    tr = n_d-t+1
+    s(t) = d(t)
+    call syncthreads() 
+    d(t) = s(tr)
+  end subroutine dynamicReverse3
+end module reverse_m
+
+program sharedExample
+  use cudafor
+  use reverse_m
+  implicit none
+  integer, parameter :: n = 64
+  real :: a(n), r(n), d(n)
+  real, device :: d_d(n)
+  type(dim3) :: grid,threadblock
+  integer :: i 
+
+  threadBlock = dim3(n,1,1)
+  grid = dim3(1,1,1)
+  do i = 1, n
+    a(i) = i
+    r(i) = n-i+1
+  enddo
+
+  ! run version with static shared memory
+  d_d = a
+  call staticReverse<<<grid,threadBlock>>>(d_d)
+  d = d_d
+  write(*,*) 'Static case max error:', maxval(abs(r-d))
+
+  ! run dynamic shared memory version 1
+  d_d = a
+  call dynamicReverse1<<<grid,threadBlock,4*threadBlock%x>>>(d_d)
+  d = d_d
+  write(*,*) 'Dynamic case 1 max error:', maxval(abs(r-d))
+
+  ! run dynamic shared memory version 2
+  d_d = a
+  call dynamicReverse2<<<grid,threadBlock,4*threadBlock%x>>>(d_d,n)
+  d = d_d
+  write(*,*) 'Dynamic case 2 max error:', maxval(abs(r-d))
+
+  ! run dynamic shared memory version 3
+  n_d = n ! n_d declared in reverse_m
+  d_d = a
+  call dynamicReverse3<<<grid,threadBlock,4*threadBlock%x>>>(d_d)
+  d = d_d
+  write(*,*) 'Dynamic case 3 max error:', maxval(abs(r-d)) 
+end program sharedExample
