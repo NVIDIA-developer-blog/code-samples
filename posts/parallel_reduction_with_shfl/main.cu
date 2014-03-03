@@ -4,7 +4,7 @@
 #include "device_reduce_warp_atomic.h"
 #include "device_reduce_stable.h"
 #include "vector_functions.h"
-#include "cub/cub.cuh"
+#include "cub/cub/cub.cuh"
 
 #define cudaCheckError() {                                          \
   cudaError_t e=cudaGetLastError();                                  \
