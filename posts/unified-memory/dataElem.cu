@@ -46,7 +46,7 @@ int main(void)
   e = (DataElement*)malloc(sizeof(DataElement));
 
   e->value = 10;
-  e->name = (char*)malloc(sizeof(char) * strlen("hello") );
+  e->name = (char*)malloc(sizeof(char) * (strlen("hello") + 1));
   strcpy(e->name, "hello");
 
   launch(e);

@@ -58,7 +58,7 @@ private:
   void _realloc(int len) {
     cudaFree(data);
     length = len;
-    cudaMallocManaged(&data, length);
+    cudaMallocManaged(&data, length+1);
   }
 };
 

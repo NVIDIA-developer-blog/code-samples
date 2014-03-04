@@ -39,7 +39,7 @@ int main(void)
   DataElement *e = new DataElement;
   
   e->value = 10;
-  cudaMallocManaged((void**)&(e->name), sizeof(char) * strlen("hello") );
+  cudaMallocManaged((void**)&(e->name), sizeof(char) * (strlen("hello") + 1) );
   strcpy(e->name, "hello");
 
   launch(e);
