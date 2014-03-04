@@ -1,3 +1,6 @@
 [submodule "posts/parallel_reduction_with_shfl/cub"]
 	path = posts/parallel_reduction_with_shfl/cub
 	url = https://github.com/NVLabs/cub.git
+[submodule "posts/american-options/external/cub"]
+	path = posts/american-options/external/cub
+	url = git://github.com/NVlabs/cub.git
