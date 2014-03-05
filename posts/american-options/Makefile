@@ -13,7 +13,7 @@ CUDA_LIB_PATH  ?= $(CUDA_PATH)/lib64
 
 # The CUB library.
 
-CUB_INC_PATH   ?= external\cub
+CUB_INC_PATH   ?= external/cub
 
 ###################################################################################################
 #
