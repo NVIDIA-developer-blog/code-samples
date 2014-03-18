@@ -26,15 +26,15 @@ public:
   String() : length(0), data(0) {}
   
   // Constructor for C-string initializer
-  String(const char *s) { 
+  String(const char *s) : length(0), data(0) { 
     _realloc(strlen(s));
-    memcpy(data, s, length);
+    strcpy(data, s);
   }
 
   // Copy constructor
-  String(const String& s) {
+  String(const String& s) : length(0), data(0) {
     _realloc(s.length);
-    memcpy(data, s.data, length);
+    strcpy(data, s.data);
   }
   
   ~String() { cudaFree(data); }
@@ -42,7 +42,7 @@ public:
   // Assignment operator
   String& operator=(const char* s) {
     _realloc(strlen(s));
-    memcpy(data, s, length);
+    strcpy(data, s);
     return *this;
   }
 
@@ -71,7 +71,7 @@ struct DataElement : public Managed
 
 __global__ 
 void Kernel_by_pointer(DataElement *elem) {
-  printf("On device:                  name=%s, value=%d\n", elem->name.c_str(), elem->value);
+  printf("On device by pointer:       name=%s, value=%d\n", elem->name.c_str(), elem->value);
 
   elem->name[0] = 'p';
   elem->value++;
@@ -79,7 +79,7 @@ void Kernel_by_pointer(DataElement *elem) {
 
 __global__ 
 void Kernel_by_ref(DataElement &elem) {
-  printf("On device:                  name=%s, value=%d\n", elem.name.c_str(), elem.value);
+  printf("On device by ref:           name=%s, value=%d\n", elem.name.c_str(), elem.value);
 
   elem.name[0] = 'r';
   elem.value++;
@@ -87,7 +87,7 @@ void Kernel_by_ref(DataElement &elem) {
 
 __global__ 
 void Kernel_by_value(DataElement elem) {
-  printf("On device:                  name=%s, value=%d\n", elem.name.c_str(), elem.value);
+  printf("On device by value:         name=%s, value=%d\n", elem.name.c_str(), elem.value);
 
   elem.name[0] = 'v';
   elem.value++;
@@ -127,7 +127,7 @@ int main(void)
 
   printf("On host (after by-value):   name=%s, value=%d\n", e->name.c_str(), e->value);
 
-  delete e;
+  //delete e;
 
   cudaDeviceReset();
 }
