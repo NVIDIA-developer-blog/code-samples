@@ -51,7 +51,7 @@ void runTest(int deviceId, int nMB)
   offset<<<n/blockSize, blockSize>>>(d_a, 0); // warm up
 
   for (int i = 0; i <= 32; i++) {
-    checkCuda( cudaMemset(d_a, 0.0, n * sizeof(T)) );
+    checkCuda( cudaMemset(d_a, 0, n * sizeof(T)) );
 
     checkCuda( cudaEventRecord(startEvent,0) );
     offset<<<n/blockSize, blockSize>>>(d_a, i);
@@ -67,7 +67,7 @@ void runTest(int deviceId, int nMB)
 
   stride<<<n/blockSize, blockSize>>>(d_a, 1); // warm up
   for (int i = 1; i <= 32; i++) {
-    checkCuda( cudaMemset(d_a, 0.0, n * sizeof(T)) );
+    checkCuda( cudaMemset(d_a, 0, n * sizeof(T)) );
 
     checkCuda( cudaEventRecord(startEvent,0) );
     stride<<<n/blockSize, blockSize>>>(d_a, i);
