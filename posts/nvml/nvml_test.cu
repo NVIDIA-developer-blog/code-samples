@@ -100,8 +100,8 @@ int main()
 	
 	if ( NVML_FEATURE_DISABLED == isRestricted )
 	{
-		dim3 dimsA(256,256);
-		dim3 dimsB(256,256);
+		dim3 dimsA(1024,1024);
+		dim3 dimsB(1024,1024);
 		
 		for ( int i=numSupportedSMClocks-1; i >= 0; --i )
 		{
@@ -112,6 +112,10 @@ int main()
 			
 			matrixMultiply(dimsA, dimsB);
 		}
+	}
+	else
+	{
+		std::cerr<<"ERROR: Application clock permissions are set to RESTRICTED. Please change with sudo nvidia-smi -acp UNRESTRICTED"<<std::endl;
 	}
 	
 	//Reset Application Clocks and Shutdown NVML

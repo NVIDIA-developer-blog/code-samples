@@ -138,7 +138,7 @@ int matrixMultiply(dim3 &dimsA, dim3 &dimsB)
     float *h_B = (float *)malloc(mem_size_B);
 
     // Initialize host memory
-    const float valB = 0.01f;
+    const float valB = 0.001f;
     constantInit(h_A, size_A, 1.0f);
     constantInit(h_B, size_B, valB);
 
