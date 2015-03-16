@@ -52,9 +52,7 @@ void xyzw_frequency_thrust_device(int *count, char *text, int n)
 {
   const char letters[] { 'x','y','z','w' };
 
-  auto ptext = thrust::device_pointer_cast(text);
-
-  *count = thrust::count_if(thrust::device, ptext, ptext+n, [&](char c) {
+  *count = thrust::count_if(thrust::device, text, text+n, [&](char c) {
     for (const auto x : letters) 
       if (c == x) return true;
     return false;
@@ -99,8 +97,8 @@ int main(int argc, char** argv)
 	cudaMemset(d_count, 0, sizeof(int));
 
   // Try uncommenting one kernel call at a time
-	xyzw_frequency<<<8, 256>>>(d_count, d_text, len);
-  //xyzw_frequency_thrust_device<<<1, 1>>>(d_count, d_text, len);
+	//xyzw_frequency<<<8, 256>>>(d_count, d_text, len);
+  xyzw_frequency_thrust_device<<<1, 1>>>(d_count, d_text, len);
   cudaMemcpy(&count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
   
   //xyzw_frequency_thrust_host(&count, h_text, len);
