@@ -47,6 +47,9 @@ void xyzw_frequency(int *count, char *text, int n)
   });
 }
 
+// A bug in CUDA 7.0 causes errors when this is called
+// Comment out by default, but will work in CUDA 7.5
+#if 0
 __global__
 void xyzw_frequency_thrust_device(int *count, char *text, int n)
 {
@@ -58,6 +61,7 @@ void xyzw_frequency_thrust_device(int *count, char *text, int n)
     return false;
   });
 }
+#endif
 
 // a bug in Thrust 1.8 causes warnings when this is uncommented
 // so commented out by default -- fixed in Thrust master branch
@@ -97,8 +101,8 @@ int main(int argc, char** argv)
 	cudaMemset(d_count, 0, sizeof(int));
 
   // Try uncommenting one kernel call at a time
-	//xyzw_frequency<<<8, 256>>>(d_count, d_text, len);
-  xyzw_frequency_thrust_device<<<1, 1>>>(d_count, d_text, len);
+	xyzw_frequency<<<8, 256>>>(d_count, d_text, len);
+  //xyzw_frequency_thrust_device<<<1, 1>>>(d_count, d_text, len);
   cudaMemcpy(&count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
   
   //xyzw_frequency_thrust_host(&count, h_text, len);
