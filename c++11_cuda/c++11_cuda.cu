@@ -27,9 +27,9 @@ template <typename T, typename Predicate>
 __device__ 
 void count_if(int *count, T *data, int n, Predicate p)
 { 
-	for (auto i : grid_stride_range(0, n)) {
-		if (p(data[i])) atomicAdd(count, 1);
-	}
+  for (auto i : grid_stride_range(0, n)) {
+    if (p(data[i])) atomicAdd(count, 1);
+  }
 }
 
 // Use count_if with a lambda function that searches for x, y, z or w
@@ -79,7 +79,7 @@ void xyzw_frequency_thrust_host(int *count, char *text, int n)
 #endif
 
 int main(int argc, char** argv)
-{	
+{ 
   const char *filename = "warandpeace.txt";
     
   int numBytes = 16*1048576;
@@ -93,25 +93,25 @@ int main(int argc, char** argv)
   fclose(fp);
   std::cout << "Read " << len << " byte corpus from " << filename << std::endl;
 
-	cudaMemcpy(d_text, h_text, len, cudaMemcpyHostToDevice);
-	
+  cudaMemcpy(d_text, h_text, len, cudaMemcpyHostToDevice);
+  
   int count = 0;
-	int *d_count;
-	cudaMalloc(&d_count, sizeof(int));
-	cudaMemset(d_count, 0, sizeof(int));
+  int *d_count;
+  cudaMalloc(&d_count, sizeof(int));
+  cudaMemset(d_count, 0, sizeof(int));
 
   // Try uncommenting one kernel call at a time
-	xyzw_frequency<<<8, 256>>>(d_count, d_text, len);
+  xyzw_frequency<<<8, 256>>>(d_count, d_text, len);
   //xyzw_frequency_thrust_device<<<1, 1>>>(d_count, d_text, len);
   cudaMemcpy(&count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
   
   //xyzw_frequency_thrust_host(&count, h_text, len);
 
-	std::cout << "counted " << count << " instances of 'x', 'y', 'z', or 'w' in \"" 
-	<< filename << "\"" << std::endl;
+  std::cout << "counted " << count << " instances of 'x', 'y', 'z', or 'w' in \"" 
+  << filename << "\"" << std::endl;
 
-	cudaFree(d_count);
-	cudaFree(d_text);
+  cudaFree(d_count);
+  cudaFree(d_text);
 
-	return 0;
+  return 0;
 }
