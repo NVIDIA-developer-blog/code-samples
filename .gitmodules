@@ -4,3 +4,6 @@
 [submodule "posts/american-options/external/cub"]
 	path = posts/american-options/external/cub
 	url = git://github.com/NVlabs/cub.git
+[submodule "c++11_cuda/cpp11-range"]
+	path = c++11_cuda/cpp11-range
+	url = https://github.com/harrism/cpp11-range
