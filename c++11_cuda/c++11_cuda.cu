@@ -55,7 +55,7 @@ void xyzw_frequency_thrust_device(int *count, char *text, int n)
 {
   const char letters[] { 'x','y','z','w' };
 
-  *count = thrust::count_if(thrust::device, text, text+n, [&](char c) {
+  *count = thrust::count_if(thrust::device, text, text+n, [=](char c) {
     for (const auto x : letters) 
       if (c == x) return true;
     return false;
