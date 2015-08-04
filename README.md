@@ -6,7 +6,7 @@ This repository contains source code examples from the NVIDIA [Parallel Forall B
 License
 -------
 
-These examples are released under the Apache 2.0 open source license.  Refer to license.txt in this directory for full details.
+These examples are released under the BSD open source license.  Refer to license.txt in this directory for full details.
 
 List of Code Samples
 --------------------
