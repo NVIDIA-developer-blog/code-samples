@@ -16,8 +16,8 @@
 //#undef USE_EGL_GET_DISPLAY
 
 // use egl surface or manually managed FBO as render target
-#define USE_EGL_SURFACE
-//#undef USE_EGL_SURFACE
+//#define USE_EGL_SURFACE
+#undef USE_EGL_SURFACE
 
 
 #ifdef USE_EGL_GET_DISPLAY
