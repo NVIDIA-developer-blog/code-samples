@@ -39,7 +39,7 @@ manual_nvtx: manual_nvtx.cu Makefile
 	nvcc -Xcompiler -export-dynamic -DUSE_NVTX -arch=sm_20 -lnvToolsExt -o manual_nvtx manual_nvtx.cu
 
 compiler_inst_nvtx: compiler_inst_nvtx1.cu Makefile inst_nvtx.o
-	nvcc -G -Xcompiler -export-dynamic -Xcompiler -fPIC -Xcompiler -finstrument-functions -arch=sm_20 inst_nvtx.o -ldl -lnvToolsExt -o compiler_inst_nvtx compiler_inst_nvtx1.cu 
+	nvcc -Xcompiler -export-dynamic -Xcompiler -fPIC -Xcompiler -finstrument-functions -arch=sm_20 inst_nvtx.o -ldl -lnvToolsExt -o compiler_inst_nvtx compiler_inst_nvtx1.cu 
 	
 clean:
 	rm -f *.o $(BINARIES)
