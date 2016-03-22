@@ -26,6 +26,7 @@
 
 # Compilers
 MPICC=$(PREP) mpicc
+MPILD=$(PREP) mpic++
 NVCC=$(PREP) nvcc
 
 # Flags
@@ -36,8 +37,11 @@ CUDACFLAGS=-I${CUDA_INSTALL_PATH}/include
 GENCODE_SM13    := -gencode arch=compute_13,code=sm_13
 GENCODE_SM20    := -gencode arch=compute_20,code=sm_20
 GENCODE_SM30    := -gencode arch=compute_30,code=sm_30
-GENCODE_SM35    := -gencode arch=compute_35,code=\"sm_35,compute_35\"
-GENCODE_FLAGS   := $(GENCODE_SM13) $(GENCODE_SM20) $(GENCODE_SM30) $(GENCODE_SM35)
+GENCODE_SM35    := -gencode arch=compute_35,code=sm_35
+GENCODE_SM35    := -gencode arch=compute_37,code=sm_37
+GENCODE_SM50    := -gencode arch=compute_50,code=sm_50
+GENCODE_SM52    := -gencode arch=compute_52,code=\"sm_52,compute_52\"
+GENCODE_FLAGS   := $(GENCODE_SM20) $(GENCODE_SM30) $(GENCODE_SM35) $(GENCODE_SM37) $(GENCODE_SM50) $(GENCODE_SM52)
 
 NVCCFLAGS=-O3 $(GENCODE_FLAGS) -Xcompiler -march=native
 
@@ -72,11 +76,11 @@ cuda_aware_mpi.o: Jacobi.h CUDA_Aware_MPI.c Makefile
 
 $(JACOBI_CUDA_NORMAL_MPI): jacobi.o input.o host.o device.o cuda_normal_mpi.o Makefile
 	mkdir -p $(BINDIR)
-	$(MPICC) $(CUDALDFLAGS) -o $(JACOBI_CUDA_NORMAL_MPI) jacobi.o input.o host.o device.o  cuda_normal_mpi.o  
+	$(MPILD) $(CUDALDFLAGS) -o $(JACOBI_CUDA_NORMAL_MPI) jacobi.o input.o host.o device.o  cuda_normal_mpi.o  
 	
 $(JACOBI_CUDA_AWARE_MPI): jacobi.o input.o host.o device.o cuda_aware_mpi.o Makefile
 	mkdir -p $(BINDIR)
-	$(MPICC) $(CUDALDFLAGS) -o $(JACOBI_CUDA_AWARE_MPI) jacobi.o input.o host.o device.o cuda_aware_mpi.o  
+	$(MPILD) $(CUDALDFLAGS) -o $(JACOBI_CUDA_AWARE_MPI) jacobi.o input.o host.o device.o cuda_aware_mpi.o  
 
 doc: CUDA_Normal_MPI.c CUDA_Aware_MPI.c Device.cu Host.c Input.c Makefile Jacobi.c Jacobi.h Jacobi.doxygen
 	doxygen Jacobi.doxygen
