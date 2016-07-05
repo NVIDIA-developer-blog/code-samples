@@ -43,7 +43,7 @@ cudaError_t checkCuda(cudaError_t result)
 }
 
 float fx = 1.0f, fy = 1.0f, fz = 1.0f;
-const int mx = 96, my = 96, mz = 96;
+const int mx = 64, my = 64, mz = 64;
   
 // shared memory tiles will be m*-by-*Pencils
 // sPencils is used when each thread calculates the derivative at one point
