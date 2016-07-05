@@ -43,7 +43,7 @@ cudaError_t checkCuda(cudaError_t result)
 }
 
 float fx = 1.0f, fy = 1.0f, fz = 1.0f;
-const int mx = 64, my = 64, mz = 64;
+const int mx = 96, my = 96, mz = 96;
   
 // shared memory tiles will be m*-by-*Pencils
 // sPencils is used when each thread calculates the derivative at one point
@@ -441,10 +441,10 @@ void runTest(int dimension)
                               sPencils, mz,
                               lPencils, mz };
 
-  float f[mx*my*mz];
-  float df[mx*my*mz];
-  float sol[mx*my*mz];
-  
+  float *f = new float[mx*my*mz];
+  float *df = new float[mx*my*mz];
+  float *sol = new float[mx*my*mz];                           
+    
   initInput(f, dimension);
   initSol(sol, dimension);
 
@@ -495,6 +495,10 @@ void runTest(int dimension)
 
   checkCuda( cudaFree(d_f) );
   checkCuda( cudaFree(d_df) );
+
+  delete [] f;
+  delete [] df;
+  delete [] sol;
 }
 
 
