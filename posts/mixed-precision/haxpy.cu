@@ -53,20 +53,21 @@ void haxpy(int n, half a, const half *x, half *y)
 	int stride = blockDim.x * gridDim.x;
 
 #if __CUDA_ARCH__ >= 530
-	int n2 = n/2;
+  int n2 = n/2;
 	half2 *x2 = (half2*)x, *y2 = (half2*)y;
 
-	for (int i = start; i < n2; i+= stride)
+	for (int i = start; i < n2; i+= stride) 
 		y2[i] = __hfma2(__halves2half2(a, a), x2[i], y2[i]);
 
 	// first thread handles singleton for odd arrays
-    if (start == 0 && (n%2))
-    	y[n-1] = __hfma(a, x[n-1], y[n-1]);   
+  if (start == 0 && (n%2))
+  	y[n-1] = __hfma(a, x[n-1], y[n-1]);   
+
 #else
-    for (int i = start; i < n; i+= stride) {
-    	y[i] = __float2half(__half2float(a) * __half2float(x[i]) 
+  for (int i = start; i < n; i+= stride) {
+    y[i] = __float2half(__half2float(a) * __half2float(x[i]) 
     		                                + __half2float(y[i]));
-    }
+  }
 #endif
 }
 
@@ -84,17 +85,17 @@ int main(void) {
 		y[i] = approx_float_to_half((float)i);
 	}
 
-	const int blockDim = 256;
-	const int nBlocks = (n + blockDim - 1) / blockDim;
+	const int blockSize = 256;
+	const int nBlocks = (n + blockSize - 1) / blockSize;
 
-	haxpy<<<blockDim, nBlocks>>>(n, a, x, y);
+	haxpy<<<nBlocks, blockSize>>>(n, a, x, y);
 
-    checkCuda(cudaDeviceSynchronize());
+  // must wait for kernel to finish before CPU accesses
+  checkCuda(cudaDeviceSynchronize());
     
-    for (int i = 0; i < n; i++)
-    	printf("%f\n", half_to_float(y[i]));
+  for (int i = 0; i < n; i++)
+  	printf("%f\n", half_to_float(y[i]));
 
-    
-    return 0;
+  return 0;
 }
 
