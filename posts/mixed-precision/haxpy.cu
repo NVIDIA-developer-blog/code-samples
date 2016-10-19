@@ -54,10 +54,10 @@ void haxpy(int n, half a, const half *x, half *y)
 
 #if __CUDA_ARCH__ >= 530
   int n2 = n/2;
-	half2 *x2 = (half2*)x, *y2 = (half2*)y;
+  half2 *x2 = (half2*)x, *y2 = (half2*)y;
 
-	for (int i = start; i < n2; i+= stride) 
-		y2[i] = __hfma2(__halves2half2(a, a), x2[i], y2[i]);
+  for (int i = start; i < n2; i+= stride) 
+    y2[i] = __hfma2(__halves2half2(a, a), x2[i], y2[i]);
 
 	// first thread handles singleton for odd arrays
   if (start == 0 && (n%2))
@@ -66,33 +66,33 @@ void haxpy(int n, half a, const half *x, half *y)
 #else
   for (int i = start; i < n; i+= stride) {
     y[i] = __float2half(__half2float(a) * __half2float(x[i]) 
-    		                                + __half2float(y[i]));
+      + __half2float(y[i]));
   }
 #endif
 }
 
 int main(void) {
-	const int n = 100;
+  const int n = 100;
 
-	const half a = approx_float_to_half(2.0f);
+  const half a = approx_float_to_half(2.0f);
 
-	half *x, *y;
-	checkCuda(cudaMallocManaged(&x, n * sizeof(half)));
-	checkCuda(cudaMallocManaged(&y, n * sizeof(half)));
-	
-	for (int i = 0; i < n; i++) {
-		x[i] = approx_float_to_half(1.0f);
-		y[i] = approx_float_to_half((float)i);
-	}
+  half *x, *y;
+  checkCuda(cudaMallocManaged(&x, n * sizeof(half)));
+  checkCuda(cudaMallocManaged(&y, n * sizeof(half)));
+  
+  for (int i = 0; i < n; i++) {
+    x[i] = approx_float_to_half(1.0f);
+    y[i] = approx_float_to_half((float)i);
+  }
 
-	const int blockSize = 256;
-	const int nBlocks = (n + blockSize - 1) / blockSize;
+  const int blockSize = 256;
+  const int nBlocks = (n + blockSize - 1) / blockSize;
 
-	haxpy<<<nBlocks, blockSize>>>(n, a, x, y);
+  haxpy<<<nBlocks, blockSize>>>(n, a, x, y);
 
   // must wait for kernel to finish before CPU accesses
   checkCuda(cudaDeviceSynchronize());
-    
+  
   for (int i = 0; i < n; i++)
   	printf("%f\n", half_to_float(y[i]));
 
