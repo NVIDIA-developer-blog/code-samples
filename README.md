@@ -1,7 +1,7 @@
 Parallel Forall Code Samples
 ============================
 
-This repository contains source code examples from the NVIDIA [Parallel Forall Blog](http://developer.nvidia.com/parallel-forall).
+This repository contains CUDA, OpenACC, Python, MATLAB, and other source code examples from the NVIDIA [Parallel Forall Blog](http://developer.nvidia.com/parallel-forall).
 
 License
 -------
