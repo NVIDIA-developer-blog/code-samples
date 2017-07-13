@@ -5,6 +5,8 @@ project(cmake_and_cuda LANGUAGES CXX CUDA)
 include(CTest)
 
 add_library(particles STATIC
+  randomize.cpp
+  randomize.h
   particle.cu
   particle.h
   v3.cu
