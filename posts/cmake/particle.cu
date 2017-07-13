@@ -34,22 +34,15 @@ __device__ __host__
 void particle::advance(float d)
 {
   velocity.normalize();
-  float dx = d * velocity.x;
+  auto dx = d * velocity.x;
   position.x += dx;
   totalDistance.x += dx;
-  float dy = d * velocity.y;
+  auto dy = d * velocity.y;
   position.y += dy;
   totalDistance.y += dy;
-  float dz = d * velocity.z;
+  auto dz = d * velocity.z;
   position.z += dz;
   totalDistance.z += dz;
-// #if __CUDA_ARCH__
-//   int idx = threadIdx.x + blockIdx.x*blockDim.x;
-//   if(idx == 0)
-//   {
-//     printf("totalDistance: %f\n", totalDistance.x );
-//   }
-// #endif
   velocity.scramble();
 }
 

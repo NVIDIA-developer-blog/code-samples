@@ -20,7 +20,8 @@ target_compile_features(particles PUBLIC cxx_std_11)
 # library to be built with -dc as the member functions could be called by
 # other libraries and executables
 set_target_properties( particles
-                       PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+                       PROPERTIES CUDA_SEPARABLE_COMPILATION ON
+                      )
 
 if(BUILD_TESTING)
 
@@ -35,12 +36,8 @@ if(BUILD_TESTING)
   if(APPLE)
     # We need to add the default path to the driver (libcuda.dylib) as an rpath,
     # so that the static cuda runtime can find it at runtime.
-    target_link_libraries(particle_test
-                          PRIVATE
-                          "-Wl,-rpath,${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}"
-                          )
+    set_property(TARGET particle_test PROPERTY BUILD_RPATH ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
   endif()
-
 endif()
 
 
