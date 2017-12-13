@@ -16,8 +16,8 @@
 //#undef USE_EGL_GET_DISPLAY
 
 // use egl surface or manually managed FBO as render target
-#define USE_EGL_SURFACE
-//#undef USE_EGL_SURFACE
+//#define USE_EGL_SURFACE
+#undef USE_EGL_SURFACE
 
 
 #ifdef USE_EGL_GET_DISPLAY
@@ -28,7 +28,15 @@
 #include <EGL/eglext.h>
 #endif
 
+#ifdef USE_EGL_SURFACE
 #include <GL/gl.h>
+#else
+#define GL_GLEXT_PROTOTYPES
+#include <GL/gl.h>
+#include <GL/glext.h>
+#endif
+
+
 
   static const EGLint configAttribs[] = {
           EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
@@ -50,14 +58,6 @@
         EGL_NONE,
   };
 
-
-// use eglGetDisplay or device/platform extensions to select display
-#define USE_EGL_GET_DISPLAY
-//#undef USE_EGL_GET_DISPLAY
-
-// use egl surface or manually managed FBO as render target
-#define USE_EGL_SURFACE
-//#undef USE_EGL_SURFACE
 
 int main(int argc, char *argv[])
 {
