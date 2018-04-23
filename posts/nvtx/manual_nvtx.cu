@@ -30,7 +30,7 @@
 #ifdef USE_NVTX
 #include "nvToolsExt.h"
 
-const uint32_t colors[] = { 0x0000ff00, 0x000000ff, 0x00ffff00, 0x00ff00ff, 0x0000ffff, 0x00ff0000, 0x00ffffff };
+const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
 const int num_colors = sizeof(colors)/sizeof(uint32_t);
 
 #define PUSH_RANGE(name,cid) { \
