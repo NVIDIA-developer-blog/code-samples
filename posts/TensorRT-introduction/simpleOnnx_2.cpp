@@ -41,16 +41,14 @@ using namespace cudawrapper;
 
 static Logger gLogger;
 
-// The biggest batch size user can provide
-constexpr int MAX_BATCH_SIZE = 64;
-// Number of times we run inference to calculate average time
+// Number of times we run inference to calculate average time.
 constexpr int ITERATIONS = 10;
-// Maxmimum absolute tolerance for output tensor comparison against reference
+// Maxmimum absolute tolerance for output tensor comparison against reference.
 constexpr double ABS_EPSILON = 0.005;
-// Maxmimum relative tolerance for output tensor comparison against reference
+// Maxmimum relative tolerance for output tensor comparison against reference.
 constexpr double REL_EPSILON = 0.05;
 
-ICudaEngine* createCudaEngine(string const& onnxModelPath)
+ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
 {
     unique_ptr<IBuilder, Destroy<IBuilder>> builder{createInferBuilder(gLogger)};
     unique_ptr<INetworkDefinition, Destroy<INetworkDefinition>> network{builder->createNetwork()};
@@ -62,9 +60,10 @@ ICudaEngine* createCudaEngine(string const& onnxModelPath)
         return nullptr;
     }
 
-    builder->setMaxBatchSize(MAX_BATCH_SIZE);
+    // Build TensorRT engine optimized based on for batch size of input data provided.
+    builder->setMaxBatchSize(batchSize);
 
-    return builder->buildCudaEngine(*network); // build and return TensorRT engine
+    return builder->buildCudaEngine(*network); // Build and return TensorRT engine.
 }
 
 static int getBindingInputIndex(IExecutionContext* context)
@@ -91,12 +90,12 @@ void doInference(IExecutionContext* context, cudaStream_t stream, vector<float> 
     {
         float elapsedTime;
 
-        // Measure time it takes to copy input to GPU, run inference and move output back to CPU
+        // Measure time it takes to copy input to GPU, run inference and move output back to CPU.
         cudaEventRecord(start, stream);
         launchInference(context, stream, inputTensor, outputTensor, bindings, batchSize);
         cudaEventRecord(end, stream);
 
-        // wait until the work is finished
+        // Wait until the work is finished.
         cudaStreamSynchronize(stream);
         cudaEventElapsedTime(&elapsedTime, start, end);
 
@@ -125,7 +124,7 @@ void verifyOutput(vector<float> const& outputTensor, vector<float> const& refere
     for (size_t i = 0; i < referenceTensor.size(); ++i)
     {
         double reference = static_cast<double>(referenceTensor[i]);
-        // Check absolute and relative tolerance
+        // Check absolute and relative tolerance.
         if (abs(outputTensor[i] - reference) > max(abs(reference) * REL_EPSILON, ABS_EPSILON))
         {
             cout << "ERROR: mismatch at position " << i;
@@ -139,9 +138,9 @@ void verifyOutput(vector<float> const& outputTensor, vector<float> const& refere
 
 int main(int argc, char* argv[])
 {
-    // declaring cuda engine
+    // Declaring cuda engine.
     unique_ptr<ICudaEngine, Destroy<ICudaEngine>> engine{nullptr};
-    // declaring execution context
+    // Declaring execution context.
     unique_ptr<IExecutionContext, Destroy<IExecutionContext>> context{nullptr};
     vector<float> inputTensor;
     vector<float> outputTensor;
@@ -150,10 +149,9 @@ int main(int argc, char* argv[])
     vector<string> inputFiles;
     CudaStream stream;
 
-    // inference batch size might be at most MAX_BATCH_SIZE
-    if (argc < 3 || argc > MAX_BATCH_SIZE + 2)
+    if (argc < 3)
     {
-        cout << "usage: " << argv[0] << " <path_to_model.onnx> (1.." << MAX_BATCH_SIZE << " <path_to_input.pb>)" << endl;
+        cout << "usage: " << argv[0] << " <path_to_model.onnx> (1.. <path_to_input.pb>)" << endl;
         return 1;
     }
 
@@ -163,12 +161,12 @@ int main(int argc, char* argv[])
 
     int batchSize = inputFiles.size();
 
-    // Create Cuda Engine
-    engine.reset(createCudaEngine(onnxModelPath));
+    // Create Cuda Engine.
+    engine.reset(createCudaEngine(onnxModelPath, batchSize));
     if (!engine)
         return 1;
 
-    // Assume networks takes exactly 1 input tensor and outputs 1 tensor
+    // Assume networks takes exactly 1 input tensor and outputs 1 tensor.
     assert(engine->getNbBindings() == 2);
     assert(engine->bindingIsInput(0) ^ engine->bindingIsInput(1));
 
@@ -176,24 +174,24 @@ int main(int argc, char* argv[])
     {
         Dims dims{engine->getBindingDimensions(i)};
         size_t size = accumulate(dims.d, dims.d + dims.nbDims, batchSize, multiplies<size_t>());
-        // Create CUDA buffer for Tensor
+        // Create CUDA buffer for Tensor.
         cudaMalloc(&bindings[i], size * sizeof(float));
 
-        // Resize CPU buffers to fit Tensor
+        // Resize CPU buffers to fit Tensor.
         if (engine->bindingIsInput(i))
             inputTensor.resize(size);
         else
             outputTensor.resize(size);
     }
 
-    // Read input tensor from ONNX file
+    // Read input tensor from ONNX file.
     if (readTensor(inputFiles, inputTensor) != inputTensor.size())
     {
         cout << "Couldn't read input Tensor" << endl;
         return 1;
     }
 
-    // Create Execution Context
+    // Create Execution Context.
     context.reset(engine->createExecutionContext());
 
     doInference(context.get(), stream, inputTensor, outputTensor, bindings, batchSize);
@@ -201,7 +199,7 @@ int main(int argc, char* argv[])
     vector<string> referenceFiles;
     for (string path : inputFiles)
         referenceFiles.push_back(path.replace(path.rfind("input"), 5, "output"));
-    // try to read and compare against reference tensor from protobuf file
+    // Try to read and compare against reference tensor from protobuf file.
     referenceTensor.resize(outputTensor.size());
     if (readTensor(referenceFiles, referenceTensor) != referenceTensor.size())
     {

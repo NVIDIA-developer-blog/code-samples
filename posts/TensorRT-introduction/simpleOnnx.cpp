@@ -41,18 +41,16 @@ using namespace cudawrapper;
 
 static Logger gLogger;
 
-// The biggest batch size user can provide
-constexpr int MAX_BATCH_SIZE = 64;
-// Number of times we run inference to calculate average time
+// Number of times we run inference to calculate average time.
 constexpr int ITERATIONS = 10;
-// Maxmimum absolute tolerance for output tensor comparison against reference
+// Maxmimum absolute tolerance for output tensor comparison against reference.
 constexpr double ABS_EPSILON = 0.005;
-// Maxmimum relative tolerance for output tensor comparison against reference
+// Maxmimum relative tolerance for output tensor comparison against reference.
 constexpr double REL_EPSILON = 0.05;
-// Allow TensorRT to use up to 1GB of GPU memory for tactic selection
+// Allow TensorRT to use up to 1GB of GPU memory for tactic selection.
 constexpr size_t MAX_WORKSPACE_SIZE = 1ULL << 30; // 1 GB
 
-ICudaEngine* createCudaEngine(string const& onnxModelPath)
+ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
 {
     unique_ptr<IBuilder, Destroy<IBuilder>> builder{createInferBuilder(gLogger)};
     unique_ptr<INetworkDefinition, Destroy<INetworkDefinition>> network{builder->createNetwork()};
@@ -64,37 +62,38 @@ ICudaEngine* createCudaEngine(string const& onnxModelPath)
         return nullptr;
     }
 
+    // Build TensorRT engine optimized based on for batch size of input data provided.
+    builder->setMaxBatchSize(batchSize);
     // Allow TensorRT to use fp16 mode kernels internally.
     // Note that Input and Output tensors will still use 32 bit float type by default.
     builder->setFp16Mode(builder->platformHasFastFp16());
-    builder->setMaxBatchSize(MAX_BATCH_SIZE);
     builder->setMaxWorkspaceSize(MAX_WORKSPACE_SIZE);
 
-    return builder->buildCudaEngine(*network);
+    return builder->buildCudaEngine(*network); // Build and return TensorRT engine.
 }
 
-ICudaEngine* getCudaEngine(string const& onnxModelPath)
+ICudaEngine* getCudaEngine(string const& onnxModelPath, int batchSize)
 {
-    string enginePath{getBasename(onnxModelPath) + ".engine"};
+    string enginePath{getBasename(onnxModelPath) + "_batch" + to_string(batchSize) + ".engine"};
     ICudaEngine* engine{nullptr};
 
     string buffer = readBuffer(enginePath);
     if (buffer.size())
     {
-        // try to deserialize engine
+        // Try to deserialize engine.
         unique_ptr<IRuntime, Destroy<IRuntime>> runtime{createInferRuntime(gLogger)};
         engine = runtime->deserializeCudaEngine(buffer.data(), buffer.size(), nullptr);
     }
 
     if (!engine)
     {
-        // Fallback to creating engine from scratch
-        engine = createCudaEngine(onnxModelPath);
+        // Fallback to creating engine from scratch.
+        engine = createCudaEngine(onnxModelPath, batchSize);
 
         if (engine)
         {
             unique_ptr<IHostMemory, Destroy<IHostMemory>> engine_plan{engine->serialize()};
-            // try to save engine for future uses
+            // Try to save engine for future uses.
             writeBuffer(engine_plan->data(), engine_plan->size(), enginePath);
         }
     }
@@ -125,12 +124,12 @@ void doInference(IExecutionContext* context, cudaStream_t stream, vector<float> 
     {
         float elapsedTime;
 
-        // Measure time it takes to copy input to GPU, run inference and move output back to CPU
+        // Measure time it takes to copy input to GPU, run inference and move output back to CPU.
         cudaEventRecord(start, stream);
         launchInference(context, stream, inputTensor, outputTensor, bindings, batchSize);
         cudaEventRecord(end, stream);
 
-        // wait until the work is finished
+        // Wait until the work is finished.
         cudaStreamSynchronize(stream);
         cudaEventElapsedTime(&elapsedTime, start, end);
 
@@ -159,7 +158,7 @@ void verifyOutput(vector<float> const& outputTensor, vector<float> const& refere
     for (size_t i = 0; i < referenceTensor.size(); ++i)
     {
         double reference = static_cast<double>(referenceTensor[i]);
-        // Check absolute and relative tolerance
+        // Check absolute and relative tolerance.
         if (abs(outputTensor[i] - reference) > max(abs(reference) * REL_EPSILON, ABS_EPSILON))
         {
             cout << "ERROR: mismatch at position " << i;
@@ -173,9 +172,9 @@ void verifyOutput(vector<float> const& outputTensor, vector<float> const& refere
 
 int main(int argc, char* argv[])
 {
-    // declaring cuda engine
+    // Declaring cuda engine.
     unique_ptr<ICudaEngine, Destroy<ICudaEngine>> engine{nullptr};
-    // declaring execution context
+    // Declaring execution context.
     unique_ptr<IExecutionContext, Destroy<IExecutionContext>> context{nullptr};
     vector<float> inputTensor;
     vector<float> outputTensor;
@@ -184,10 +183,9 @@ int main(int argc, char* argv[])
     vector<string> inputFiles;
     CudaStream stream;
 
-    // inference batch size might be at most MAX_BATCH_SIZE
-    if (argc < 3 || argc > MAX_BATCH_SIZE + 2)
+    if (argc < 3)
     {
-        cout << "usage: " << argv[0] << " <path_to_model.onnx> (1.." << MAX_BATCH_SIZE << " <path_to_input.pb>)" << endl;
+        cout << "usage: " << argv[0] << " <path_to_model.onnx> (1.. <path_to_input.pb>)" << endl;
         return 1;
     }
 
@@ -197,12 +195,12 @@ int main(int argc, char* argv[])
 
     int batchSize = inputFiles.size();
 
-    // Create Cuda Engine
-    engine.reset(getCudaEngine(onnxModelPath));
+    // Create Cuda Engine.
+    engine.reset(getCudaEngine(onnxModelPath, batchSize));
     if (!engine)
         return 1;
 
-    // Assume networks takes exactly 1 input tensor and outputs 1 tensor
+    // Assume networks takes exactly 1 input tensor and outputs 1 tensor.
     assert(engine->getNbBindings() == 2);
     assert(engine->bindingIsInput(0) ^ engine->bindingIsInput(1));
 
@@ -210,24 +208,24 @@ int main(int argc, char* argv[])
     {
         Dims dims{engine->getBindingDimensions(i)};
         size_t size = accumulate(dims.d, dims.d + dims.nbDims, batchSize, multiplies<size_t>());
-        // Create CUDA buffer for Tensor
+        // Create CUDA buffer for Tensor.
         cudaMalloc(&bindings[i], size * sizeof(float));
 
-        // Resize CPU buffers to fit Tensor
+        // Resize CPU buffers to fit Tensor.
         if (engine->bindingIsInput(i))
             inputTensor.resize(size);
         else
             outputTensor.resize(size);
     }
 
-    // Read input tensor from ONNX file
+    // Read input tensor from ONNX file.
     if (readTensor(inputFiles, inputTensor) != inputTensor.size())
     {
         cout << "Couldn't read input Tensor" << endl;
         return 1;
     }
 
-    // Create Execution Context
+    // Create Execution Context.
     context.reset(engine->createExecutionContext());
 
     doInference(context.get(), stream, inputTensor, outputTensor, bindings, batchSize);
@@ -235,7 +233,7 @@ int main(int argc, char* argv[])
     vector<string> referenceFiles;
     for (string path : inputFiles)
         referenceFiles.push_back(path.replace(path.rfind("input"), 5, "output"));
-    // try to read and compare against reference tensor from protobuf file
+    // Try to read and compare against reference tensor from protobuf file.
     referenceTensor.resize(outputTensor.size());
     if (readTensor(referenceFiles, referenceTensor) != referenceTensor.size())
     {
