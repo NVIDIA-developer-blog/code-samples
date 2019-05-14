@@ -25,7 +25,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 CUDA_INSTALL_DIR=/usr/local/cuda
 
-CXXFLAGS=-std=c++11 -Wall -I$(CUDA_INSTALL_DIR)/include
+CXXFLAGS=-std=c++11 -Wall -I$(CUDA_INSTALL_DIR)/include -DONNX_ML=1
 LDFLAGS=-L$(CUDA_INSTALL_DIR)/lib64 -L$(CUDA_INSTALL_DIR)/lib64/stubs 
 LDLIBS=-Wl,--start-group -lnvinfer -lnvonnxparser -lcudart_static -lrt -ldl -lpthread -lonnx -lonnx_proto -lprotobuf -lstdc++ -lm -Wl,--end-group
 
