@@ -3,7 +3,7 @@
 Contains:
 
 - `bindkernel` + launch [example](kernel/saxpy_nvrtc.py)
-- [Example 1](R/dbscan.R): RAPIDS cuML DBSCAN from R
+- [Example 1](R/cuml_dbscan.R): RAPIDS cuML DBSCAN from R
 - [Example 2](mandelbrot/app.js): ASCII Mandelbrot Set from Express.js
 
 ## Installing grCUDA
