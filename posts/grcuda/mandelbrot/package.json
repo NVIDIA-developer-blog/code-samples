@@ -1,0 +1,17 @@
+{
+  "name": "mandelbrot",
+  "version": "0.1.0",
+  "description": "Mandelbrot Set as ASCII Art",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "SEE LICENSE IN license.txt",
+  "dependencies": {
+    "express": "^4.17.1"
+  },
+  "devDependencies": {
+    "standard": "^14.3.1"
+  }
+}
