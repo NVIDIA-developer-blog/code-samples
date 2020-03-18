@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Mandelbrot Set as ASCII Art",
   "main": "app.js",
+  "repository": "https://github.com/NVIDIA-developer-blog/code-samples/tree/master/posts/grcuda/mandelbrot",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -12,6 +13,6 @@
     "express": "^4.17.1"
   },
   "devDependencies": {
-    "standard": "^14.3.1"
+    "standard": "^14.3.3"
   }
 }
