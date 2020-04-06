@@ -27,9 +27,7 @@ CUDA_INSTALL_DIR=/usr/local/cuda
 
 CXXFLAGS=-std=c++11 -DONNX_ML=1 -Wall -I$(CUDA_INSTALL_DIR)/include 
 LDFLAGS=-L$(CUDA_INSTALL_DIR)/lib64 -L$(CUDA_INSTALL_DIR)/lib64/stubs -L/usr/local/lib 
-#LDLIBS=-lnvinfer -lnvonnxparser -lcudart_static -lrt -ldl -lpthread -Wl,--start-group -lonnx -lonnx_proto -Wl,--end-group -lstdc++ -lm -lprotobuf
 
-#LDLIBS=-Wl,--start-group -lnvonnxparser -lnvinfer -lcudart_static -lonnx -lonnx_proto -lprotobuf -lstdc++ -lm -lrt -ldl -lpthread -Wl,--end-group
 LDLIBS=-Wl,--start-group -L/TensorRT-7.0.0.11/lib/ -l:libnvonnxparser.so.7  -L/TensorRT-7.0.0.11/lib/ -l:libnvinfer.so.7  -lcudart_static -lonnx -lonnx_proto -lprotobuf -lstdc++ -lm -lrt -ldl -lpthread -Wl,--end-group
 
 HEADERS=${wildcard *.h}
