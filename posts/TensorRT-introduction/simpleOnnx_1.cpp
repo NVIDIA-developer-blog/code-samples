@@ -38,9 +38,6 @@
 #include <math.h>
 #include <cmath>
 
-
-
-
 using namespace nvinfer1;
 using namespace std;
 using namespace cudawrapper;
@@ -54,14 +51,12 @@ constexpr double REL_EPSILON = 0.05;
 
 nvinfer1::ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
 {
-
+    const auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);     
     unique_ptr<nvinfer1::IBuilder, Destroy<nvinfer1::IBuilder>> builder{nvinfer1::createInferBuilder(gLogger)};
-    const auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH); 
     unique_ptr<nvinfer1::INetworkDefinition, Destroy<nvinfer1::INetworkDefinition>> network{builder->createNetworkV2(explicitBatch)};
     unique_ptr<nvonnxparser::IParser, Destroy<nvonnxparser::IParser>> parser{nvonnxparser::createParser(*network, gLogger)};
     unique_ptr<nvinfer1::IBuilderConfig,Destroy<nvinfer1::IBuilderConfig>> config{builder->createBuilderConfig()};
 
-  
     if (!parser->parseFromFile(onnxModelPath.c_str(), static_cast<int>(ILogger::Severity::kINFO)))
     {
         cout << "ERROR: could not parse input engine." << endl;
@@ -94,8 +89,6 @@ void launchInference(IExecutionContext* context, cudaStream_t stream, vector<flo
 
 }
 
-
-
 void verifyOutput(vector<float> const& outputTensor, vector<float> const& referenceTensor, int size)
 {
     for (size_t i = 0; i < size; ++i)
@@ -114,34 +107,27 @@ void verifyOutput(vector<float> const& outputTensor, vector<float> const& refere
 
 void saveImageAsPGM(vector<float>& outputTensor,int H, int W)
 {
-
     FILE* pgmimg; 
     pgmimg = fopen("output.pgm", "wb"); 
   
-    // Writing Magic Number to the File 
     fprintf(pgmimg, "P2\n");  
-  
     // Writing Width and Height 
     fprintf(pgmimg, "%d %d\n", H, W);  
-  
     // Writing the maximum gray value 
     fprintf(pgmimg, "255\n");  
     
-  
-    for (int i=0;  i< H; i++)
+    for (int i=0;  i< H; ++i)
     {
-      for(int j=0; j<W; j++)
+      for(int j=0; j<W; ++j)
       {
-      int temp = round(255* outputTensor[i*H + j]);
-      fprintf(pgmimg, "%d ", temp); 
+	int temp = round(255* outputTensor[i*H + j]);
+        fprintf(pgmimg, "%d ", temp); 
       }
       fprintf(pgmimg, "\n"); 
     }
     
     fclose(pgmimg);
-
 }
-
 
 int main(int argc, char* argv[])
 {
@@ -156,13 +142,11 @@ int main(int argc, char* argv[])
     vector<string> inputFiles;
     CudaStream stream;
 
-
     if (argc != 3)
     {
         cout << "usage: " << argv[0] << " <path_to_model.onnx> <path_to_input.pb>" << endl;
         return 1;
     }
-
 
     string onnxModelPath(argv[1]);
     inputFiles.push_back(string{argv[2]});
@@ -193,22 +177,25 @@ int main(int argc, char* argv[])
     }
 
     // Read input tensor from ONNX file.
+    if (readTensor(inputFiles, inputTensor) != inputTensor.size())
+    {
+        cout << "Couldn't read input Tensor" << endl;
+        return 1;
+    }
     
-    int readElements  = readTensor(inputFiles, inputTensor);
 
+    // Create Execution Context.
     context.reset(engine->createExecutionContext());
+    
     Dims dims_i{engine->getBindingDimensions(0)};
     Dims4 inputDims{batchSize, dims_i.d[1], dims_i.d[2], dims_i.d[3]};
     context->setBindingDimensions(0, inputDims);
-    
-    // Create Execution Context.
+
     launchInference(context.get(), stream, inputTensor, outputTensor, bindings, batchSize);
 
     Dims dims{engine->getBindingDimensions(1)};
     saveImageAsPGM(outputTensor, dims.d[2], dims.d[3]);
-
     // Wait until the work is finished.
-
     cudaStreamSynchronize(stream);
 
     vector<string> referenceFiles;
@@ -218,8 +205,12 @@ int main(int argc, char* argv[])
 
 
     referenceTensor.resize(outputTensor.size());
-    
-    readElements = readTensor(referenceFiles, referenceTensor);
+    if (readTensor(referenceFiles, referenceTensor) != referenceTensor.size())
+    {
+        cout << "Couldn't read reference Tensor" << endl;
+        return 1;
+    }
+
     Dims dims_o{engine->getBindingDimensions(1)};
     int size = batchSize * dims_o.d[2] * dims_o.d[3];
     verifyOutput(outputTensor, referenceTensor, size);

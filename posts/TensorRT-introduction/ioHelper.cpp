@@ -82,11 +82,7 @@ size_t readTensor(vector<string> const& tensorProtoPaths, vector<float>& buffer)
 
     for (size_t i = 0; i < tensorProtoPaths.size(); ++i)
     {
-        size_t elements = readTensorProto(tensorProtoPaths[i], &buffer[totalElements]);
-        
-         
-        
-        if (!elements)
+        size_t elements = readTensorProto(tensorProtoPaths[i], &buffer[totalElements]);        if (!elements)
         {
             cout << "ERROR: could not read tensor from file " << tensorProtoPaths[i] << endl;
             break;

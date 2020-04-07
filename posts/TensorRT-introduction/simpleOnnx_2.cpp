@@ -52,23 +52,21 @@ constexpr double REL_EPSILON = 0.05;
 
 ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
 {
-  
-    
-    unique_ptr<nvinfer1::IBuilder, Destroy<nvinfer1::IBuilder>> builder{nvinfer1::createInferBuilder(gLogger)};
     const auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH); 
+    unique_ptr<nvinfer1::IBuilder, Destroy<nvinfer1::IBuilder>> builder{nvinfer1::createInferBuilder(gLogger)};
     unique_ptr<nvinfer1::INetworkDefinition, Destroy<nvinfer1::INetworkDefinition>> network{builder->createNetworkV2(explicitBatch)};
     unique_ptr<nvonnxparser::IParser, Destroy<nvonnxparser::IParser>> parser{nvonnxparser::createParser(*network, gLogger)};
     unique_ptr<nvinfer1::IBuilderConfig,Destroy<nvinfer1::IBuilderConfig>> config{builder->createBuilderConfig()};
 
-  
     if (!parser->parseFromFile(onnxModelPath.c_str(), static_cast<int>(ILogger::Severity::kINFO)))
     {
         cout << "ERROR: could not parse input engine." << endl;
         return nullptr;
     }
 
+    config->setMaxWorkspaceSize(MAX_WORKSPACE_SIZE);
+    builder->setFp16Mode(builder->platformHasFastFp16());
     builder->setMaxBatchSize(batchSize);
-    config->setMaxWorkspaceSize((1 << 30));
     
     auto profile = builder->createOptimizationProfile();
     profile->setDimensions(network->getInput(0)->getName(), OptProfileSelector::kMIN, Dims4{1, 3, 256 , 256});
@@ -76,9 +74,7 @@ ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
     profile->setDimensions(network->getInput(0)->getName(), OptProfileSelector::kMAX, Dims4{32, 3, 256 , 256});    
     config->addOptimizationProfile(profile);
 
-
     return builder->buildEngineWithConfig(*network, *config);
-    
 }
 
 static int getBindingInputIndex(IExecutionContext* context)
@@ -93,10 +89,6 @@ void launchInference(IExecutionContext* context, cudaStream_t stream, vector<flo
     cudaMemcpyAsync(bindings[inputId], inputTensor.data(), inputTensor.size() * sizeof(float), cudaMemcpyHostToDevice, stream);
     context->enqueueV2(bindings, stream, nullptr);
     cudaMemcpyAsync(outputTensor.data(), bindings[1 - inputId], outputTensor.size() * sizeof(float), cudaMemcpyDeviceToHost, stream);
-    
-
-
-    
 }
 
 void doInference(IExecutionContext* context, cudaStream_t stream, vector<float> const& inputTensor, vector<float>& outputTensor, void** bindings, int batchSize)
@@ -123,7 +115,6 @@ void doInference(IExecutionContext* context, cudaStream_t stream, vector<float> 
 
     cout << "Inference batch size " << batchSize << " average over " << ITERATIONS << " runs is " << totalTime / ITERATIONS << "ms" << endl;
 }
-
 
 void verifyOutput(vector<float> const& outputTensor, vector<float> const& referenceTensor, int size)
 {
@@ -193,30 +184,36 @@ int main(int argc, char* argv[])
     }
 
     // Read input tensor from ONNX file.
-    int readElements  = readTensor(inputFiles, inputTensor);
-
+    if (readTensor(inputFiles, inputTensor) != inputTensor.size())
+    {
+        cout << "Couldn't read input Tensor" << endl;
+        return 1;
+    }
 
     // Create Execution Context.
     context.reset(engine->createExecutionContext());
+
     Dims dims_i{engine->getBindingDimensions(0)};
     Dims4 inputDims{batchSize, dims_i.d[1], dims_i.d[2], dims_i.d[3]};
     context->setBindingDimensions(0, inputDims);
 
     doInference(context.get(), stream, inputTensor, outputTensor, bindings, batchSize);
 
-
     vector<string> referenceFiles;
     for (string path : inputFiles)
         referenceFiles.push_back(path.replace(path.rfind("input"), 5, "output"));
-        
-
+       
     // Try to read and compare against reference tensor from protobuf file.
     referenceTensor.resize(outputTensor.size());
-    readElements = readTensor(referenceFiles, referenceTensor);
-
-
+    if (readTensor(referenceFiles, referenceTensor) != referenceTensor.size())
+    {
+        cout << "Couldn't read reference Tensor" << endl;
+        return 1;
+    }
+    
     Dims dims_o{engine->getBindingDimensions(1)};
     int size = batchSize * dims_o.d[2] * dims_o.d[3];
+
     verifyOutput(outputTensor, referenceTensor, size);
 
     for (void* ptr : bindings)
