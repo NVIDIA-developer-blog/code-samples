@@ -34,7 +34,7 @@ TARGET_SRCS=$(wildcard simpleOnnx*.cpp)
 TARGET_OBJS=${TARGET_SRCS:.cpp=.o}
 TARGETS=${TARGET_OBJS:.o=}
 
-
+ 
 all: $(TARGETS)
 
 $(TARGETS): %: %.o ioHelper.o
