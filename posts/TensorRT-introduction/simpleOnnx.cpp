@@ -34,6 +34,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cmath>
+#include <numeric>
 
 using namespace nvinfer1;
 using namespace std;
