@@ -24,14 +24,13 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "ioHelper.h"
 #include <algorithm>
 #include <fstream>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <iterator>
 #include <onnx/onnx_pb.h>
-
+#include "ioHelper.h"
 using namespace std;
 
 namespace nvinfer1
@@ -83,8 +82,7 @@ size_t readTensor(vector<string> const& tensorProtoPaths, vector<float>& buffer)
 
     for (size_t i = 0; i < tensorProtoPaths.size(); ++i)
     {
-        size_t elements = readTensorProto(tensorProtoPaths[i], &buffer[totalElements]);
-        if (!elements)
+        size_t elements = readTensorProto(tensorProtoPaths[i], &buffer[totalElements]);        if (!elements)
         {
             cout << "ERROR: could not read tensor from file " << tensorProtoPaths[i] << endl;
             break;

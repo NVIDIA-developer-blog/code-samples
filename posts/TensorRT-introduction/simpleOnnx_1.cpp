@@ -24,9 +24,9 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <NvInfer.h>
 #include "cudaWrapper.h"
 #include "ioHelper.h"
-#include <NvInfer.h>
 #include <NvOnnxParser.h>
 #include <algorithm>
 #include <cassert>
@@ -34,6 +34,9 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <numeric>
+#include <math.h>
+#include <cmath>
 
 using namespace nvinfer1;
 using namespace std;
@@ -46,11 +49,13 @@ constexpr double ABS_EPSILON = 0.005;
 // Maxmimum relative tolerance for output tensor comparison against reference.
 constexpr double REL_EPSILON = 0.05;
 
-ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
+nvinfer1::ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
 {
-    unique_ptr<IBuilder, Destroy<IBuilder>> builder{createInferBuilder(gLogger)};
-    unique_ptr<INetworkDefinition, Destroy<INetworkDefinition>> network{builder->createNetwork()};
+    const auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);     
+    unique_ptr<nvinfer1::IBuilder, Destroy<nvinfer1::IBuilder>> builder{nvinfer1::createInferBuilder(gLogger)};
+    unique_ptr<nvinfer1::INetworkDefinition, Destroy<nvinfer1::INetworkDefinition>> network{builder->createNetworkV2(explicitBatch)};
     unique_ptr<nvonnxparser::IParser, Destroy<nvonnxparser::IParser>> parser{nvonnxparser::createParser(*network, gLogger)};
+    unique_ptr<nvinfer1::IBuilderConfig,Destroy<nvinfer1::IBuilderConfig>> config{builder->createBuilderConfig()};
 
     if (!parser->parseFromFile(onnxModelPath.c_str(), static_cast<int>(ILogger::Severity::kINFO)))
     {
@@ -58,10 +63,19 @@ ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
         return nullptr;
     }
 
-    return builder->buildCudaEngine(*network); // Build and return TensorRT engine.
+    builder->setMaxBatchSize(batchSize);
+    config->setMaxWorkspaceSize((1 << 30));
+    
+    auto profile = builder->createOptimizationProfile();
+    profile->setDimensions(network->getInput(0)->getName(), OptProfileSelector::kMIN, Dims4{1, 3, 256 , 256});
+    profile->setDimensions(network->getInput(0)->getName(), OptProfileSelector::kOPT, Dims4{1, 3, 256 , 256});
+    profile->setDimensions(network->getInput(0)->getName(), OptProfileSelector::kMAX, Dims4{32, 3, 256 , 256});    
+    config->addOptimizationProfile(profile);
+
+    return builder->buildEngineWithConfig(*network, *config);
 }
 
-static int getBindingInputIndex(IExecutionContext* context)
+static int getBindingInputIndex(nvinfer1::IExecutionContext* context)
 {
     return !context->getEngine().bindingIsInput(0); // 0 (false) if bindingIsInput(0), 1 (true) otherwise
 }
@@ -69,29 +83,15 @@ static int getBindingInputIndex(IExecutionContext* context)
 void launchInference(IExecutionContext* context, cudaStream_t stream, vector<float> const& inputTensor, vector<float>& outputTensor, void** bindings, int batchSize)
 {
     int inputId = getBindingInputIndex(context);
-
     cudaMemcpyAsync(bindings[inputId], inputTensor.data(), inputTensor.size() * sizeof(float), cudaMemcpyHostToDevice, stream);
-    context->enqueue(batchSize, bindings, stream, nullptr);
+    context->enqueueV2(bindings, stream, nullptr);
     cudaMemcpyAsync(outputTensor.data(), bindings[1 - inputId], outputTensor.size() * sizeof(float), cudaMemcpyDeviceToHost, stream);
+
 }
 
-void softmax(vector<float>& tensor, int batchSize)
+void verifyOutput(vector<float> const& outputTensor, vector<float> const& referenceTensor, int size)
 {
-    size_t batchElements = tensor.size() / batchSize;
-
-    for (int i = 0; i < batchSize; ++i)
-    {
-        float* batchVector = &tensor[i * batchElements];
-        double maxValue = *max_element(batchVector, batchVector + batchElements);
-        double expSum = accumulate(batchVector, batchVector + batchElements, 0.0, [=](double acc, float value) { return acc + exp(value - maxValue); });
-
-        transform(batchVector, batchVector + batchElements, batchVector, [=](float input) { return static_cast<float>(std::exp(input - maxValue) / expSum); });
-    }
-}
-
-void verifyOutput(vector<float> const& outputTensor, vector<float> const& referenceTensor)
-{
-    for (size_t i = 0; i < referenceTensor.size(); ++i)
+    for (size_t i = 0; i < size; ++i)
     {
         double reference = static_cast<double>(referenceTensor[i]);
         // Check absolute and relative tolerance.
@@ -102,8 +102,31 @@ void verifyOutput(vector<float> const& outputTensor, vector<float> const& refere
             return;
         }
     }
+    cout << "OK" << endl;              
+}
 
-    cout << "OK" << endl;
+void saveImageAsPGM(vector<float>& outputTensor,int H, int W)
+{
+    FILE* pgmimg; 
+    pgmimg = fopen("output.pgm", "wb"); 
+  
+    fprintf(pgmimg, "P2\n");  
+    // Writing Width and Height 
+    fprintf(pgmimg, "%d %d\n", H, W);  
+    // Writing the maximum gray value 
+    fprintf(pgmimg, "255\n");  
+    
+    for (int i=0;  i< H; ++i)
+    {
+      for(int j=0; j<W; ++j)
+      {
+	int temp = round(255* outputTensor[i*H + j]);
+        fprintf(pgmimg, "%d ", temp); 
+      }
+      fprintf(pgmimg, "\n"); 
+    }
+    
+    fclose(pgmimg);
 }
 
 int main(int argc, char* argv[])
@@ -141,13 +164,14 @@ int main(int argc, char* argv[])
     for (int i = 0; i < engine->getNbBindings(); ++i)
     {
         Dims dims{engine->getBindingDimensions(i)};
-        size_t size = accumulate(dims.d, dims.d + dims.nbDims, batchSize, multiplies<size_t>());
+        size_t size = accumulate(dims.d+1, dims.d + dims.nbDims, batchSize, multiplies<size_t>());
         // Create CUDA buffer for Tensor.
-        cudaMalloc(&bindings[i], size * sizeof(float));
+        cudaMalloc(&bindings[i], batchSize * size * sizeof(float));
 
         // Resize CPU buffers to fit Tensor.
-        if (engine->bindingIsInput(i))
+        if (engine->bindingIsInput(i)){
             inputTensor.resize(size);
+        }
         else
             outputTensor.resize(size);
     }
@@ -158,11 +182,19 @@ int main(int argc, char* argv[])
         cout << "Couldn't read input Tensor" << endl;
         return 1;
     }
+    
 
     // Create Execution Context.
     context.reset(engine->createExecutionContext());
+    
+    Dims dims_i{engine->getBindingDimensions(0)};
+    Dims4 inputDims{batchSize, dims_i.d[1], dims_i.d[2], dims_i.d[3]};
+    context->setBindingDimensions(0, inputDims);
 
     launchInference(context.get(), stream, inputTensor, outputTensor, bindings, batchSize);
+
+    Dims dims{engine->getBindingDimensions(1)};
+    saveImageAsPGM(outputTensor, dims.d[2], dims.d[3]);
     // Wait until the work is finished.
     cudaStreamSynchronize(stream);
 
@@ -170,6 +202,8 @@ int main(int argc, char* argv[])
     for (string path : inputFiles)
         referenceFiles.push_back(path.replace(path.rfind("input"), 5, "output"));
     // Try to read and compare against reference tensor from protobuf file.
+
+
     referenceTensor.resize(outputTensor.size());
     if (readTensor(referenceFiles, referenceTensor) != referenceTensor.size())
     {
@@ -177,12 +211,10 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Apply a softmax on the CPU to create a normalized distribution suitable for measuring relative error in probabilities.
-    softmax(outputTensor, batchSize);
-    softmax(referenceTensor, batchSize);
-
-    verifyOutput(outputTensor, referenceTensor);
-
+    Dims dims_o{engine->getBindingDimensions(1)};
+    int size = batchSize * dims_o.d[2] * dims_o.d[3];
+    verifyOutput(outputTensor, referenceTensor, size);
+    
     for (void* ptr : bindings)
         cudaFree(ptr);
 

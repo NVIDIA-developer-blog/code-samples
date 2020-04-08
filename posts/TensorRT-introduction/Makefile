@@ -25,16 +25,16 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 CUDA_INSTALL_DIR=/usr/local/cuda
 
-CXXFLAGS=-std=c++11 -Wall -I$(CUDA_INSTALL_DIR)/include
-LDFLAGS=-L$(CUDA_INSTALL_DIR)/lib64 -L$(CUDA_INSTALL_DIR)/lib64/stubs 
-LDLIBS=-Wl,--start-group -lnvinfer -lnvonnxparser -lcudart_static -lrt -ldl -lpthread -lonnx -lonnx_proto -lprotobuf -lstdc++ -lm -Wl,--end-group
+CXXFLAGS=-std=c++11 -DONNX_ML=1 -Wall -I$(CUDA_INSTALL_DIR)/include 
+LDFLAGS=-L$(CUDA_INSTALL_DIR)/lib64 -L$(CUDA_INSTALL_DIR)/lib64/stubs -L/usr/local/lib
+LDLIBS=-Wl,--start-group -lnvonnxparser -lnvinfer -lcudart_static -lonnx -lonnx_proto -lprotobuf -lstdc++ -lm -lrt -ldl -lpthread -Wl,--end-group
 
 HEADERS=${wildcard *.h}
 TARGET_SRCS=$(wildcard simpleOnnx*.cpp)
 TARGET_OBJS=${TARGET_SRCS:.cpp=.o}
 TARGETS=${TARGET_OBJS:.o=}
 
-
+ 
 all: $(TARGETS)
 
 $(TARGETS): %: %.o ioHelper.o
