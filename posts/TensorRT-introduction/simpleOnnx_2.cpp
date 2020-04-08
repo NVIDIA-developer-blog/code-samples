@@ -49,6 +49,8 @@ constexpr int ITERATIONS = 10;
 constexpr double ABS_EPSILON = 0.005;
 // Maxmimum relative tolerance for output tensor comparison against reference.
 constexpr double REL_EPSILON = 0.05;
+// Allow TensorRT to use up to 1GB of GPU memory for tactic selection.
+constexpr size_t MAX_WORKSPACE_SIZE = 1ULL << 30; // 1 GB
 
 ICudaEngine* createCudaEngine(string const& onnxModelPath, int batchSize)
 {
