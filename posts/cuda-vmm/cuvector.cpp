@@ -101,6 +101,8 @@ VectorMemAllocManaged::VectorMemAllocManaged(CUcontext context) : ctx(context), 
         (void)cuCtxGetDevice(&dev);
         (void)cuCtxSetCurrent(prev_ctx);
     }
+
+    (void)cuDeviceGetAttribute(&supportsConcurrentManagedAccess, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS, dev);
 }
 
 VectorMemAllocManaged::~VectorMemAllocManaged()
@@ -182,7 +184,8 @@ VectorMemAllocManaged::grow(size_t new_sz)
     // Actually commit the needed memory
     // We explicitly use the per thread stream here to ensure we're not
     // conflicting with other uses of the null stream from other threads
-    if ((status = cuMemPrefetchAsync(d_p + alloc_sz, (new_sz - alloc_sz), dev,
+    if (supportsConcurrentManagedAccess &&
+        (status = cuMemPrefetchAsync(d_p + alloc_sz, (new_sz - alloc_sz), dev,
                                      CU_STREAM_PER_THREAD)) == CUDA_SUCCESS) {
         // Not completely necessary, but will ensure the prefetch is complete
         // and prevent future runtime faults.  Also makes for a more fair
