@@ -87,6 +87,8 @@ private:
     CUdeviceptr d_p;
     size_t alloc_sz;
     size_t reserve_sz;
+    // Attribute query to see if cuMemPrefetchAsync is available to the target device.
+    int supportsConcurrentManagedAccess;
 
 public:
     VectorMemAllocManaged(CUcontext context);
