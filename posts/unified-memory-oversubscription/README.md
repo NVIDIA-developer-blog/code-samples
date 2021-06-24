@@ -23,6 +23,9 @@ Default: 1.0
 2M/64K/4K
 Default: 2M
 
+-blocksize - Kernel thread block size
+Default: 128
+
 -lc - LoopCount - Benchmark iteration count
 integer value
 ```
