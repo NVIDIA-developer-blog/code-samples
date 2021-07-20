@@ -62,7 +62,7 @@ enum MemoryAccess {
 
 template <typename T> __device__ T myrand(T i);
 
-// from wikipedia - glibc LCG constants
+// glibc LCG constants - taken from public domain
 // x_n+1 = (a*x_n + c) mod m
 // a = 1103515245
 // m = 2^31
@@ -97,7 +97,7 @@ template<typename data_type>
 __global__ void read_thread_blocksync(data_type *ptr, const size_t size)
 {
     size_t n = size / sizeof(data_type);
-    data_type accum = 0;    // ToDo: check PTX that accum is not optimized out
+    data_type accum = 0;
 
     size_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     while (1) {
@@ -195,18 +195,26 @@ __global__ void cta_random_warp_streaming_read(data_type *ptr, const size_t size
     ptr[0] = accum;
 }
 
-int main(int argc, char *argv[]) {
 
+typedef struct {
+  std::string header_string = "";
+  size_t        page_size;
+  float         oversubscription_factor;
+  int           loop_count;
+  int           block_size;
+  KernelOp      k_op;
+  UVMBehavior   uvm_behavior;
+  MemoryAccess  memory_access;
+} cmdline_params;
+
+cmdline_params parse_arguments(int argc, char *argv[]) {
   KernelOp        k_op = READ;
   UVMBehavior     uvm_behavior = PAGE_FAULT;
   MemoryAccess    memory_access = STREAMING;
   float           oversubscription_factor = 1.0f; // 1.0 - 100%
   size_t          page_size = TWO_MB;
   int loop_count = 3;
-  int num_gpus = 0;
   int block_size = 128;
-  CUDA_CHECK(cudaGetDeviceCount(&num_gpus));
-
   std::string header_string = "";
 
   int cur_pos = 1;
@@ -258,7 +266,6 @@ int main(int argc, char *argv[]) {
     }
     else if (flag == "-lc") {
       loop_count = std::atoi(argv[cur_pos++]);
-      header_string += "loop_count=";
     }
     else if (flag == "-blocksize") {
       block_size = std::atoi(argv[cur_pos++]);
@@ -304,49 +311,98 @@ int main(int argc, char *argv[]) {
   header_string += "loop_count=";
   header_string += std::to_string(loop_count);
 
+  cmdline_params args;
+  args.header_string = header_string;
+  args.page_size = page_size;
+  args.oversubscription_factor = oversubscription_factor;
+  args.loop_count = loop_count;
+  args.block_size = block_size;
+  args.k_op = k_op;
+  args.uvm_behavior = uvm_behavior;
+  args.memory_access = memory_access;
+
+  return args;
+}
+
+void setup_memory_allocation(cmdline_params params, size_t vidmem_size, bool is_P9, void** blockMemory, void **uvm_alloc_ptr, size_t& allocation_size) {
+
   // determine cudaMallocManaged size
   int current_device = 0;
   CUDA_CHECK(cudaSetDevice(current_device));
-  cudaDeviceProp prop;
-  CUDA_CHECK(cudaGetDeviceProperties(&prop, current_device));
-  bool is_P9 = (prop.pageableMemoryAccessUsesHostPageTables == 1);
+  allocation_size = (size_t)(params.oversubscription_factor * vidmem_size);
 
-  size_t allocation_size = (size_t)(oversubscription_factor * prop.totalGlobalMem);
-
-  void *blockMemory = nullptr;
-  if (memory_access != STREAMING && uvm_behavior) {
+  if (params.memory_access == RANDOM_WARP) {
     // reduce test working memory
     // cudaMalloc 2/3 GPU
-    size_t cudaMallocSize = AlignSize(size_t(prop.totalGlobalMem * 0.67), page_size);
-    allocation_size = AlignSize(size_t(prop.totalGlobalMem * 0.33 * oversubscription_factor),
-                                  page_size);
-    CUDA_CHECK(cudaMalloc(&blockMemory, cudaMallocSize));
+    size_t cudaMallocSize = AlignSize(size_t(vidmem_size * 0.67), params.page_size);
+    allocation_size = AlignSize(size_t(vidmem_size * 0.33 * params.oversubscription_factor),
+                                  params.page_size);
+    CUDA_CHECK(cudaMalloc(blockMemory, cudaMallocSize));
   }
   // pad allocation to page_size
-  allocation_size = AlignSize(allocation_size, page_size);
-  size_t num_pages = allocation_size / page_size;
-
-  size_t avail_phy_vidmem = 0, total_phy_vidmem = 0;
-  // allocate memory - add hints etc as needed
-  void *uvm_alloc_ptr = NULL;
+  allocation_size = AlignSize(allocation_size, params.page_size);
 
   // For P9 we need to allocate and free in-benchmark loop
   // as evicted memory has remote mappings don't trigger a page-fault
-  if (!(is_P9 && uvm_behavior == PAGE_FAULT)) {
-    CUDA_CHECK(cudaMallocManaged(&uvm_alloc_ptr, allocation_size));
-    CUDA_CHECK(cudaMemGetInfo(&avail_phy_vidmem, &total_phy_vidmem));
+  if (!(is_P9 && params.uvm_behavior == PAGE_FAULT)) {
+    CUDA_CHECK(cudaMallocManaged(uvm_alloc_ptr, allocation_size));
+    
     // populate pages on GPU
-    CUDA_CHECK(cudaMemPrefetchAsync(uvm_alloc_ptr, allocation_size, current_device));
+    CUDA_CHECK(cudaMemPrefetchAsync(*uvm_alloc_ptr, allocation_size, current_device));
   }
+}
+
+dim3 get_grid_config(cmdline_params params, int multiProcessorCount) {
+  dim3 grid(1,1,1);
+  int num_blocks_per_sm = 1;  // placeholder value
+
+  if (params.k_op == READ) {
+    if (params.memory_access == STREAMING) {
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_per_sm,
+                                            read_thread_blocksync<float>, params.block_size, 0);
+      grid.x = multiProcessorCount * num_blocks_per_sm;
+    }
+    else if (params.memory_access == BLOCK_STREAMING) {
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_per_sm,
+                                            read_thread_blockCont_blocksync<float>, params.block_size, 0);
+      grid.x = multiProcessorCount * num_blocks_per_sm;
+    }
+    else if (params.memory_access == RANDOM_WARP) {
+      cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_per_sm,
+                                        cta_random_warp_streaming_read<float>, params.block_size, 0);
+      grid.x = multiProcessorCount * num_blocks_per_sm;
+    }
+  }
+  return grid;
+}
+
+int main(int argc, char *argv[]) {
+  cmdline_params args = parse_arguments(argc, argv);
+
+  int current_device = 0;
+  cudaDeviceProp prop;
+  CUDA_CHECK(cudaGetDeviceProperties(&prop, current_device));
+  bool is_P9 = (prop.pageableMemoryAccessUsesHostPageTables == 1);
+  void *blockMemory = nullptr;
+  void *uvm_alloc_ptr = nullptr;
+  size_t allocation_size = 0;
+  size_t avail_phy_vidmem = 0, total_phy_vidmem = 0;
+  CUDA_CHECK(cudaMemGetInfo(&avail_phy_vidmem, &total_phy_vidmem));
+
+  setup_memory_allocation(args, prop.totalGlobalMem, is_P9, &blockMemory, &uvm_alloc_ptr, allocation_size);
+  size_t num_pages = allocation_size / args.page_size;
+
+  if (args.memory_access == RANDOM_WARP)
+    CUDA_CHECK(cudaMemGetInfo(&avail_phy_vidmem, &total_phy_vidmem));
+
 
   // P9 need more state space on vidmem - size in MB
   size_t state_space_size = (prop.pageableMemoryAccessUsesHostPageTables == 1) ? 320 : 128;
-  size_t permissible_phys_pages_count = avail_phy_vidmem / page_size;
-  permissible_phys_pages_count -= (state_space_size * 1024 * 1024 / page_size);
+  size_t permissible_phys_pages_count = avail_phy_vidmem / args.page_size;
+  permissible_phys_pages_count -= (state_space_size * 1024 * 1024 / args.page_size);
 
-  dim3 block(block_size,1,1);
-  dim3 grid((prop.multiProcessorCount * prop.maxThreadsPerMultiProcessor) / block.x, 1, 1);
-  int num_blocks_per_sm = 1;  // placeholder value
+  dim3 block(args.block_size,1,1);
+  dim3 grid = get_grid_config(args, prop.multiProcessorCount);
 
   cudaStream_t task_stream;
   CUDA_CHECK(cudaStreamCreate(&task_stream));
@@ -359,21 +415,23 @@ int main(int argc, char *argv[]) {
   float accum_kernel_time = 0.0f;
   float accum_bw = 0.0f;
 
-  for (int itr = 0; itr < loop_count; itr++) {
-    if (is_P9 && uvm_behavior == PAGE_FAULT) {
+  for (int itr = 0; itr < args.loop_count; itr++) {
+    // on P9, memory is allocated in loop for fault based allocations
+    // to avoid access counter initiated mapping
+    if (is_P9 && args.uvm_behavior == PAGE_FAULT) {
       CUDA_CHECK(cudaMallocManaged(&uvm_alloc_ptr, allocation_size));
     }
     //  prefetch to CPU as starting point
-    if (uvm_behavior != PREFETCH_ONCE_AND_HINTS)
+    if (args.uvm_behavior != PREFETCH_ONCE_AND_HINTS)
       CUDA_CHECK(cudaMemPrefetchAsync(uvm_alloc_ptr, allocation_size, cudaCpuDeviceId,
                                         task_stream));
 
-    switch(uvm_behavior) {
+    switch(args.uvm_behavior) {
       case STRIPE_GPU_CPU:
       {
         // distribute pages across GPU0 and CPU
         // get page-split ratios
-        float cpu_factor = oversubscription_factor - 1.0;
+        float cpu_factor = args.oversubscription_factor - 1.0;
         if (cpu_factor < 0.0f)
           cpu_factor = 0.0f; 
         int mod_zero_devId = cudaCpuDeviceId;
@@ -382,10 +440,10 @@ int main(int argc, char *argv[]) {
         if (cpu_factor > 1.0) {
           mod_zero_devId = current_device;
           flip_devId = cudaCpuDeviceId;
-          mod_scale = int(std::round(oversubscription_factor));
+          mod_scale = int(std::round(args.oversubscription_factor));
         }
         else if (cpu_factor != 0.0f) {
-          mod_scale = int(std::round(oversubscription_factor / cpu_factor));
+          mod_scale = int(std::round(args.oversubscription_factor / cpu_factor));
         }
         int gpu_page_count = 0, cpu_page_count = 0;
         void *running_ptr = uvm_alloc_ptr;
@@ -398,7 +456,7 @@ int main(int argc, char *argv[]) {
           if (gpu_page_count == permissible_phys_pages_count)
             device = cudaCpuDeviceId;
 
-          CUDA_CHECK(cudaMemPrefetchAsync(running_ptr, page_size, device, task_stream));
+          CUDA_CHECK(cudaMemPrefetchAsync(running_ptr, args.page_size, device, task_stream));
 
           if (device == cudaCpuDeviceId)
             cpu_page_count++;
@@ -406,14 +464,14 @@ int main(int argc, char *argv[]) {
             gpu_page_count++;
 
           if (itr == 0) {
-            CUDA_CHECK(cudaMemAdvise(running_ptr, page_size, cudaMemAdviseSetPreferredLocation,
+            CUDA_CHECK(cudaMemAdvise(running_ptr, args.page_size, cudaMemAdviseSetPreferredLocation,
                                       device));
 
             if (device == cudaCpuDeviceId)
-              CUDA_CHECK(cudaMemAdvise(running_ptr, page_size, cudaMemAdviseSetAccessedBy,
+              CUDA_CHECK(cudaMemAdvise(running_ptr, args.page_size, cudaMemAdviseSetAccessedBy,
                                         current_device));
           }
-          running_ptr = reinterpret_cast<void*>((size_t)running_ptr + page_size);
+          running_ptr = reinterpret_cast<void*>((size_t)running_ptr + args.page_size);
         }
       }
       break;
@@ -446,28 +504,19 @@ int main(int argc, char *argv[]) {
       CUDA_CHECK(cudaEventRecord(startE, task_stream));
 
       // run read/write kernel for streaming/random access
-      if (k_op == READ) {
-        if (memory_access == STREAMING) {
-          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_per_sm,
-                                                read_thread_blocksync<float>, block.x, 0);
-          grid.x = prop.multiProcessorCount * num_blocks_per_sm;
+      if (args.k_op == READ) {
+        if (args.memory_access == STREAMING) {
           read_thread_blocksync<float><<<grid, block, 0, task_stream>>>((float*)uvm_alloc_ptr,
                                                                 allocation_size);
         }
-        else if (memory_access == BLOCK_STREAMING) {
-          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_per_sm,
-                                                read_thread_blockCont_blocksync<float>, block.x, 0);
-          grid.x = prop.multiProcessorCount * num_blocks_per_sm;
+        else if (args.memory_access == BLOCK_STREAMING) {
           read_thread_blockCont_blocksync<float><<<grid, block, 0, task_stream>>>((float*)uvm_alloc_ptr,
                                                                 allocation_size);
         }
-        else if (memory_access == RANDOM_WARP) {
-          cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_per_sm,
-                                            cta_random_warp_streaming_read<float>, block.x, 0);
-          grid.x = prop.multiProcessorCount * num_blocks_per_sm;
+        else if (args.memory_access == RANDOM_WARP) {
           cta_random_warp_streaming_read<float><<<grid, block, 0, task_stream>>>(
                                                 (float*)uvm_alloc_ptr, allocation_size,
-                                                  num_pages, page_size);
+                                                  num_pages, args.page_size);
         }
       }
 
@@ -480,7 +529,7 @@ int main(int argc, char *argv[]) {
       float bw_meas = allocation_size / (1024.0f * 1024.0f * 1024.0f) / (kernel_time / 1000.0f );
       accum_bw += bw_meas;
 
-      if (is_P9 && uvm_behavior == PAGE_FAULT) {
+      if (is_P9 && args.uvm_behavior == PAGE_FAULT) {
         CUDA_CHECK(cudaFree(uvm_alloc_ptr));
       }
     }
@@ -490,9 +539,9 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaStreamDestroy(task_stream));
   
     // avg time, comp bw, print numbers, avg bw per run or total run/total sizes??, avg kernel time, avg bw
-    printf("%s, %f ms, %f GB/s\n", header_string.c_str(), accum_kernel_time / loop_count, accum_bw / loop_count);
+    printf("%s, %f ms, %f GB/s\n", args.header_string.c_str(), accum_kernel_time / args.loop_count, accum_bw / args.loop_count);
 
-    if (!(is_P9 && uvm_behavior == PAGE_FAULT)) {
+    if (!(is_P9 && args.uvm_behavior == PAGE_FAULT)) {
       CUDA_CHECK(cudaFree(uvm_alloc_ptr));
     }
 

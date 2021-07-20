@@ -29,7 +29,9 @@ NVCC ?= nvcc
 all: uvm_oversubs
 
 uvm_oversubs: uvm_oversubs.cu
-	$(NVCC) $^ -o $@ -std=c++11 -arch=sm_70
+	$(NVCC) $^ -o $@ -std=c++11 -gencode arch=compute_70,code=sm_70 \
+                              -gencode arch=compute_80,code=sm_80 \
+                              -gencode arch=compute_80,code=compute_80
 
 clean:
 	$(RM) uvm_oversubs
