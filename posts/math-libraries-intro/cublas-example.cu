@@ -53,9 +53,6 @@ int main(int argc, char *argv[]) {
 
     printf (" Allocating memory for matrices aligned on 64-byte boundary for better \n"
             " performance \n\n");
-    // const std::vector<double> A(m * n);
-    // const std::vector<double> B(m * n);
-    // const std::vector<double> C(m * n);
 
     double *d_A = nullptr;
     double *d_B = nullptr;
@@ -71,11 +68,6 @@ int main(int argc, char *argv[]) {
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), sizeof(double) * m * k));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_B), sizeof(double) * k * n));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_C), sizeof(double) * m * n));
-
-    // CUDA_CHECK(cudaMemcpyAsync(d_A, A.data(), sizeof(double) * A.size(), cudaMemcpyHostToDevice,
-    //                            stream));
-    // CUDA_CHECK(cudaMemcpyAsync(d_B, B.data(), sizeof(double) * B.size(), cudaMemcpyHostToDevice,
-    //                            stream));
 
     /* step 3: compute */
     printf (" Computing matrix product using cuBLAS dgemm function \n\n");
@@ -97,12 +89,6 @@ int main(int argc, char *argv[]) {
 
     cudaEventElapsedTime( &elapsed_gpu_ms, startEvent, stopEvent );
     printf( " Time Elapsed: %0.2f ms \n\n", elapsed_gpu_ms/10);
-
-    /* step 4: copy data to host */
-    // CUDA_CHECK(cudaMemcpyAsync(C.data(), d_C, sizeof(double) * C.size(), cudaMemcpyDeviceToHost,
-    //                            stream));
-
-    // CUDA_CHECK(cudaStreamSynchronize(stream));
 
     /* free resources */
     printf ("\n Deallocating memory \n\n");
