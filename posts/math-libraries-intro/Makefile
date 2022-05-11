@@ -29,7 +29,7 @@ BINARIES= cublas-example openblas-example
 all: $(BINARIES)
 
 openblas-example: openblas-example.c Makefile
-	g++ -pthread -O3 -Wall openblas-example.c -o openblas-example -lopenblas -lpthread -lm
+	g++ -std=c++11 -pthread -O3 -Wall openblas-example.c -o openblas-example -lopenblas -lpthread -lm
 
 cublas-example: cublas-example.cu Makefile
 	nvcc -lcublas -std=c++11 cublas-example.cu  -o cublas-example 
