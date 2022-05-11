@@ -32,7 +32,7 @@ openblas-example: openblas-example.c Makefile
 	g++ -pthread -O3 -Wall openblas-example.c -o openblas-example -lopenblas -lpthread -lm
 
 cublas-example: cublas-example.cu Makefile
-	nvcc -lcublas cublas-example.cu  -o cublas-example
+	nvcc -lcublas -std=c++11 cublas-example.cu  -o cublas-example 
 	
 clean:
 	rm -f *.o $(BINARIES)
