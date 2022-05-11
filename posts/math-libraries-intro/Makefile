@@ -29,10 +29,10 @@ BINARIES= cublas-example openblas-example
 all: $(BINARIES)
 
 openblas-example: openblas-example.c Makefile
-	g++ -pthread -O3 -Wall test_cblas_dgemm_new.c -o test_cblas_dgemm -lopenblas -lpthread -lm
+	g++ -pthread -O3 -Wall openblas-example.c -o openblas-example -lopenblas -lpthread -lm
 
 cublas-example: cublas-example.cu Makefile
-	nvcc -lcublas cublas_example.cu  -o cublas_example
+	nvcc -lcublas cublas-example.cu  -o cublas-example
 	
 clean:
 	rm -f *.o $(BINARIES)
