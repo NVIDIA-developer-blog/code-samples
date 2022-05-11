@@ -24,12 +24,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-BINARIES= cublas-example
+BINARIES= cublas-example openblas-example
 
 all: $(BINARIES)
 
-openblas-example.o: openblas-example.c Makefile
-	g++ -pthread -O3 -Wall openblas-example.c -o openblas-example -lopenblas -lpthread -lm -c openblas-example.c
+openblas-example: openblas-example.c Makefile
+	g++ -pthread -O3 -Wall test_cblas_dgemm_new.c -o test_cblas_dgemm -lopenblas -lpthread -lm
 
 cublas-example: cublas-example.cu Makefile
 	nvcc -lcublas cublas_example.cu  -o cublas_example
