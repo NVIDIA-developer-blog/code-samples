@@ -27,7 +27,7 @@ Tesla V100-PCIE 32GB
 
 #### Set GPU Clocks
 
-- Copy the code block below into your `.bashrc` file
+- Copy the code block below into the `.bashrc` file
 
 ``` bash
 scs () {
