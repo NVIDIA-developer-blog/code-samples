@@ -49,6 +49,10 @@ scs () {
 }
 ```
 
+1. Copy the above code block into your `.bashrc`
+2. Update with `source ~/.bashrc`
+3. Run `scs` to execute
+
 ## Running Examples
 
 ============================
