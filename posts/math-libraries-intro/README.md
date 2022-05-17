@@ -27,6 +27,8 @@ Tesla V100-PCIE 32GB
 
 #### Set GPU Clocks
 
+- Copy the code block below into your `.bashrc` file
+
 ``` bash
 scs () {
 
@@ -49,9 +51,8 @@ scs () {
 }
 ```
 
-1. Copy the above code block into your `.bashrc`
-2. Update with `source ~/.bashrc`
-3. Run `scs` to execute
+- Update with `source ~/.bashrc`
+- Run `scs` to execute
 
 ## Running Examples
 
