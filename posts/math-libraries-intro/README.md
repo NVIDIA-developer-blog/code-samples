@@ -83,7 +83,7 @@ This example computes real matrix C=alpha*A*B+beta*C using
 ------------------------------
 
 **CPU:**
-`Intel(R) Xeon(R) CPU E5-2698 v3 @ 2.30GHz`
+Intel(R) Xeon(R) CPU E5-2698 v3 @ 2.30GHz
 
 **GPU:**
-`Tesla V100-PCIE 32GB`
+Tesla V100-PCIE 32GB
