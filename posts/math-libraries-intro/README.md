@@ -17,17 +17,20 @@ This example requires the following packages:
 ## Running examples
 
 ============================
-$ git clone the repo
 
-$ cd code-samples/posts/math-libraries-intro
+`git clone the repo`
 
-$ make
+`cd code-samples/posts/math-libraries-intro`
 
-$ ./openblas-example
+`make`
+
+`./openblas-example`
 
 ### Output
 
 =============================
+
+```
 
 This example computes real matrix C=alpha*A*B+beta*C using
  OpenBLAS dgemm, where A, B, and  C are matrices and
@@ -43,11 +46,15 @@ This example computes real matrix C=alpha*A*B+beta*C using
 
  Example completed.
 
-$ ./cublas-example
+```
+
+`./cublas-example`
 
 ### Output
 
 =============================
+
+```
 
  This example computes real matrix C=alpha*A*B+beta*C using
  cuBLAS dgemm, where A, B, and  C are matrices and
@@ -69,10 +76,10 @@ $ ./cublas-example
 
  Example completed.
 
+```
+
 ## License
 
 -------
 
 These examples are released under the BSD open source license.  Refer to license.txt in this directory for full details.
-
-
