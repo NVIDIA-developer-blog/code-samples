@@ -19,13 +19,11 @@ This example requires the following packages:
 
 ============================
 
-`git clone the repo`
-
-`cd code-samples/posts/math-libraries-intro`
-
-`make`
-
-`./openblas-example`
+```bash
+cd code-samples/posts/math-libraries-intro
+make
+./openblas-example
+```
 
 ### Output
 
