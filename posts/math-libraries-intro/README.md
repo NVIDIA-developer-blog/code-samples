@@ -8,16 +8,52 @@ Matrix Multiplication performed using OpenBLAS and cuBLAS.
 
 ============================
 
-This example requires the following packages:
+### Packages Used
 
 - CUDA Toolkit 11.0
 - OpenBLAS 0.2.18
-- GCC 5.4.0
-- LAPACK 3.6.1
 
-## Running examples
+### Hardware Specifications
+
+**CPU:**
+Intel(R) Xeon(R) CPU E5-2698 v3 @ 2.30GHz
+
+**GPU:**
+Tesla V100-PCIE 32GB
+
+#### Set Environment Variables
+
+`export OPENBLAS_NUM_THREADS=32`
+
+#### Set GPU Clocks
+
+``` bash
+scs () {
+
+        module load cuda/11.2.1
+
+        DATE=$(date +"%m%d%y-%H%M%S")
+        G_NAME=$(nvidia-smi -i 0 --query-gpu=gpu_name --format=csv,nounits,noheader | sed 's/ /-/g')
+        G_CLK=$(nvidia-smi -i 0 --query-gpu=clocks.max.sm --format=csv,nounits,noheader)
+        M_CLK=$(nvidia-smi -i 0 --query-gpu=clocks.max.memory --format=csv,nounits,noheader)
+        P_LIMIT=$(nvidia-smi -i 0 --query-gpu=power.max_limit --format=csv,nounits,noheader)
+        DRIVER=$(nvidia-smi -i 0 --query-gpu=driver_version --format=csv,nounits,noheader)
+
+        sudo nvidia-smi
+        sudo nvidia-smi -pm ENABLED
+        sudo nvidia-smi --auto-boost-default=0
+        sudo nvidia-smi -ac ${M_CLK},${G_CLK}
+        sudo nvidia-smi -lgc ${G_CLK},${G_CLK}
+        sudo nvidia-smi -pl ${P_LIMIT}
+        sudo nvidia-smi -q -d POWER,CLOCK
+}
+```
+
+## Running Examples
 
 ============================
+
+### Build
 
 `git clone the repo`
 
@@ -25,9 +61,13 @@ This example requires the following packages:
 
 `make`
 
+### OpenBLAS
+
+#### Run
+
 `./openblas-example`
 
-### Output
+#### Sample Output
 
 =============================
 
@@ -49,9 +89,13 @@ This example computes real matrix C=alpha*A*B+beta*C using
 
 ```
 
+### cuBLAS
+
+#### Run
+
 `./cublas-example`
 
-### Output
+#### Sample Output
 
 =============================
 
@@ -77,13 +121,3 @@ This example computes real matrix C=alpha*A*B+beta*C using
 
  Example completed.
 ```
-
-## Hardware Specifications
-
-------------------------------
-
-**CPU:**
-Intel(R) Xeon(R) CPU E5-2698 v3 @ 2.30GHz
-
-**GPU:**
-Tesla V100-PCIE 32GB
