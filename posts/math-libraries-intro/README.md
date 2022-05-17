@@ -31,7 +31,7 @@ This example requires the following packages:
 
 =============================
 
-```
+```bash
 
 This example computes real matrix C=alpha*A*B+beta*C using
  OpenBLAS dgemm, where A, B, and  C are matrices and
@@ -55,7 +55,7 @@ This example computes real matrix C=alpha*A*B+beta*C using
 
 =============================
 
-```
+```bash
 
  This example computes real matrix C=alpha*A*B+beta*C using
  cuBLAS dgemm, where A, B, and  C are matrices and
@@ -76,5 +76,14 @@ This example computes real matrix C=alpha*A*B+beta*C using
  Deallocating memory
 
  Example completed.
-
 ```
+
+## Hardware Specifications
+
+------------------------------
+
+**CPU:**
+`Intel(R) Xeon(R) CPU E5-2698 v3 @ 2.30GHz`
+
+**GPU:**
+`Tesla V100-PCIE 32GB`
