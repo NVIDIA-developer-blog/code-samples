@@ -7,6 +7,7 @@ Matrix Multiplication performed using OpenBLAS and cuBLAS.
 ## Getting Started
 
 ============================
+
 This example requires the following packages:
 
 - CUDA Toolkit 11.0
@@ -77,9 +78,3 @@ This example computes real matrix C=alpha*A*B+beta*C using
  Example completed.
 
 ```
-
-## License
-
--------
-
-These examples are released under the BSD open source license.  Refer to license.txt in this directory for full details.
