@@ -31,7 +31,7 @@ This example requires the following packages:
 
 =============================
 
-```bash
+```text
 
 This example computes real matrix C=alpha*A*B+beta*C using
  OpenBLAS dgemm, where A, B, and  C are matrices and
@@ -55,7 +55,7 @@ This example computes real matrix C=alpha*A*B+beta*C using
 
 =============================
 
-```bash
+```text
 
  This example computes real matrix C=alpha*A*B+beta*C using
  cuBLAS dgemm, where A, B, and  C are matrices and
