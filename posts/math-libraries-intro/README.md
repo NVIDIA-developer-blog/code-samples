@@ -1,13 +1,78 @@
-Parallel Forall Code Samples
+# GEMM Examples
+
 ============================
 
-This repository contains CUDA, OpenACC, Python, MATLAB, and other source code examples from the NVIDIA [Parallel Forall Blog](http://developer.nvidia.com/parallel-forall).
+Matrix Multiplication performed using OpenBLAS and cuBLAS.
 
-License
+## Getting Started
+
+============================
+This example requires the following packages:
+
+- CUDA Toolkit 11.0
+- OpenBLAS 0.2.18
+- GCC 5.4.0
+- LAPACK 3.6.1
+
+## Running examples
+
+============================
+$ git clone the repo
+
+$ cd code-samples/posts/math-libraries-intro
+
+$ make
+
+$ ./openblas-example
+
+### Output
+
+=============================
+
+This example computes real matrix C=alpha*A*B+beta*C using
+ OpenBLAS dgemm, where A, B, and  C are matrices and
+ alpha and beta are double precision scalars
+
+ Initializing data for matrix multiplication C=A*B for matrix
+ A(4092x4092) and matrix B(4092x4092)
+
+ Allocating memory for matrices aligned on 64-byte boundary for better
+ performance
+
+ Time Elapsed: 414.35 ms
+
+ Example completed.
+
+$ ./cublas-example
+
+### Output
+
+=============================
+
+ This example computes real matrix C=alpha*A*B+beta*C using
+ cuBLAS dgemm, where A, B, and  C are matrices and
+ alpha and beta are double precision scalars
+
+ Initializing data for matrix multiplication C=A*B for matrix
+ A(4092x4092) and matrix B(4092x4092)
+
+ Allocating memory for matrices aligned on 64-byte boundary for better
+ performance
+
+ Computing matrix product using cuBLAS dgemm function
+
+ Computations completed.
+
+ Time Elapsed: 19.80 ms
+
+ Deallocating memory
+
+ Example completed.
+
+## License
+
 -------
 
 These examples are released under the BSD open source license.  Refer to license.txt in this directory for full details.
 
-List of Code Samples
---------------------
-posts/002-openacc-example: An example of [OpenACC Directives programming].
+
