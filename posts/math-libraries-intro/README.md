@@ -78,7 +78,7 @@ scs () {
 
 ```text
 
-This example computes real matrix C=alpha*A*B+beta*C using
+  This example computes real matrix C=alpha*A*B+beta*C using
  OpenBLAS dgemm, where A, B, and  C are matrices and
  alpha and beta are double precision scalars
 
