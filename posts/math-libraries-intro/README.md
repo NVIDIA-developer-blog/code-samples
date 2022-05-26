@@ -10,8 +10,8 @@ Matrix Multiplication performed using OpenBLAS and cuBLAS.
 
 ### Packages Used
 
-- CUDA Toolkit 11.0
-- OpenBLAS 0.2.18
+- CUDA Toolkit 11.3
+- OpenBLAS 0.2.19
 
 ### Hardware Specifications
 
