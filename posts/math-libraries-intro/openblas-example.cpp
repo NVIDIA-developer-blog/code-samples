@@ -35,7 +35,7 @@ int main(int argc, char *argv[]){
     std::vector<double> C(m * n);
 
     for (l = 0; l < loops; l++)
-        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, A.data(), lda, B.data(), ldb, beta, C.data(), ldc);
+        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A.data(), lda, B.data(), ldb, beta, C.data(), ldc);
     
     stop = std::chrono::high_resolution_clock::now( );
     elapsed_cpu_ms = stop - start;
