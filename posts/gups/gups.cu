@@ -102,6 +102,7 @@
 #define ACCESS_PER_ELEM_GMEM_R_W 32
 #define ACCESS_PER_ELEM_SHMEM 65536
 #define NUM_THREADS_PER_BLOCK_GMEM 1024
+// Number of threads for shared memory GUPS may not be changed for best perf
 #define NUM_THREADS_PER_BLOCK_SHMEM 1024
 #define POLY 0x0000000000000007ULL
 
