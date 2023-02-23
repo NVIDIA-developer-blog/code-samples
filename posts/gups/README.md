@@ -12,7 +12,7 @@ Notes on shared memory GUPS:
 For example: `make GPU_ARCH="70 80" DYNAMIC_SHMEM=` will build the executable `gups`, which supports global memory GUPS and shared memory GUPS with dynamic shared memory allocation, for both CC 70 (e.g., NVIIDA V100 GPU) and CC 80 (e.g., NVIDIA A100 GPU). 
 
 ### How to run the benchmark
-Note that besides GUPS (updates (loop)), our benchmark code support other random access tests, including reads, writes, reads+writes, and updates (no loop). 
+Note that besides GUPS (updates (loop)), our benchmark code supports other random access tests, including reads, writes, reads+writes, and updates (no loop). 
 You can choose the benchmark type using the `-t` runtime option. Users may need to fine tune access per element option (`-a`) to achieve the best performance. 
 Note that the correctness verification is only available for updates (loop)/default test. 
 
@@ -22,7 +22,7 @@ Usage:
   -n <int> input data size = 2^n [default: 29]
   -o <int> occupancy percentage, 100/occupancy how much larger the working set is compared to the requested bytes [default: 100]
   -r <int> number of kernel repetitions [default: 1]
-  -a <int> number of random accesses per input data element [default:  32 (r, w) or 8 (u, unl, rw) for gmem, 65536 for shmem]
+  -a <int> number of random accesses per input element [default:  32 (r, w) or 8 (u, unl, rw) for gmem, 65536 for shmem]
   -t <int> test type (0 - update (u), 1 - read (r), 2 - write (w), 3 - read write (rw), 4 - update no loop (unl)) [default: 0]
   -d <int> device ID to use [default: 0]
   -s <int> enable input in shared memory instead of global memory for shared memory GUPS benchmark if s>=0. The benchmark will use max available shared memory if s=0 (for ideal GUPS conditions this must be done at compile time, check README.md for build options). This tool does allow setting the shmem data size with = 2^s (for s>0), however this will also result in an instruction bound kernel that fails to reach hardware limitations of GUPS. [default: -1 (disabled)]

@@ -336,7 +336,7 @@ int main(int argc, char* argv[])
       "  -o <int> occupancy percentage, 100/occupancy how much larger the "
       "working set is compared to the requested bytes [default: 100]",
       "  -r <int> number of kernel repetitions [default: 1]",
-      "  -a <int> number of random accesses per input data element [default: "
+      "  -a <int> number of random accesses per input element [default: "
       " 32 (r, w) or 8 (u, unl, rw) for gmem, 65536 for shmem]",
       "  -t <int> test type (0 - update (u), 1 - read (r), 2 - write (w), 3 - read "
       "write (rw), "
