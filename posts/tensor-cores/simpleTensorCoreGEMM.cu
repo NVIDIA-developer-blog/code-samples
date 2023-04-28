@@ -60,8 +60,6 @@ using namespace nvcuda;
 #define MATRIX_N 16384
 #define MATRIX_K 16384
 
-
-
 // The only dimensions currently supported by WMMA
 const int WMMA_M = 16;
 const int WMMA_N = 16;
@@ -105,7 +103,7 @@ __global__ void wmma_example(half *a, half *b, float *c, int M, int N, int K, fl
          // Load the inputs
          wmma::load_matrix_sync(a_frag, a + aRow + aCol * lda, lda);
          wmma::load_matrix_sync(b_frag, b + bRow + bCol * ldb, ldb);
- 
+
          // Perform the matrix multiplication
          wmma::mma_sync(acc_frag, a_frag, b_frag, acc_frag);
 
@@ -119,7 +117,7 @@ __global__ void wmma_example(half *a, half *b, float *c, int M, int N, int K, fl
    if (cRow < M && cCol < N) {
       wmma::load_matrix_sync(c_frag, c + cRow + cCol * ldc, ldc, wmma::mem_col_major);
 
-
+#pragma unroll
       for(int i=0; i < c_frag.num_elements; i++) {
          c_frag.x[i] = alpha * acc_frag.x[i] + beta * c_frag.x[i];
       }
@@ -221,12 +219,11 @@ int main(int argc, char* argv[]) {
    cudaErrCheck(cudaEventRecord(startWMMA));
    wmma_example <<< gridDim, blockDim >>> (a_fp16, b_fp16, c_wmma, MATRIX_M, MATRIX_N, MATRIX_K, alpha, beta);
    cudaErrCheck(cudaEventRecord(stopWMMA));
+   cudaErrCheck(cudaEventSynchronize(stopWMMA));
 
-
-   
    // Now using cuBLAS
    printf("Running with cuBLAS...\n");
-   cudaErrCheck(cudaEventRecord(startcublas));
+   // Warm up cuBLAS run starts
    cublasErrCheck(cublasGemmEx(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, 
                 MATRIX_M, MATRIX_N, MATRIX_K, 
                 &alpha,
@@ -234,8 +231,23 @@ int main(int argc, char* argv[]) {
                 b_fp16, CUDA_R_16F, MATRIX_K,
                 &beta, 
                 c_cublas, CUDA_R_32F, MATRIX_M,
-                CUDA_R_32F, CUBLAS_GEMM_DFALT_TENSOR_OP));
+                CUDA_R_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+   // Warm up cuBLAS run ends
+
+   // reset the c_cublas buffer
+   cudaErrCheck(cudaMemcpy(c_cublas, c, MATRIX_M * MATRIX_N * sizeof(float), cudaMemcpyDeviceToDevice));
+
+   cudaErrCheck(cudaEventRecord(startcublas));
+   cublasErrCheck(cublasGemmEx(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N,
+                MATRIX_M, MATRIX_N, MATRIX_K,
+                &alpha,
+                a_fp16, CUDA_R_16F, MATRIX_M,
+                b_fp16, CUDA_R_16F, MATRIX_K,
+                &beta,
+                c_cublas, CUDA_R_32F, MATRIX_M,
+                CUDA_R_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
    cudaErrCheck(cudaEventRecord(stopcublas));
+   cudaErrCheck(cudaEventSynchronize(stopcublas));
 
    // Error checking
    printf("\nChecking results...\n");
@@ -247,7 +259,10 @@ int main(int argc, char* argv[]) {
    for (int i = 0; i < MATRIX_M * MATRIX_N; i++) {
       float v1 = c_host_wmma[i];
       float v2 = c_host_cublas[i];
-      if (v1 / v2 > 1.0001 || v2 / v1 > 1.0001 || abs(v1 - v2) > 1e-5) {
+      float diff  = fabs(v1 - v2);
+      float relative_err = diff / v2;
+      float eps = 1e-4;
+      if ((relative_err >= eps)) {
          errors++;
          if (errors < 10) printf("%f %f\n", v1, v2);
       }
@@ -260,8 +275,6 @@ int main(int argc, char* argv[]) {
       printf("Results verified: cublas and WMMA agree.\n\n");
       float wmmaTime;
       float cublasTime;
-      cudaErrCheck(cudaEventSynchronize(stopWMMA));
-      cudaErrCheck(cudaEventSynchronize(stopcublas));
       cudaErrCheck(cudaEventElapsedTime(&wmmaTime, startWMMA, stopWMMA));
       cudaErrCheck(cudaEventElapsedTime(&cublasTime, startcublas, stopcublas));
       printf("wmma took %fms\n", wmmaTime);
