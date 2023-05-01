@@ -24,9 +24,10 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+SM_ARCH ?= 70
 
 all: simpleTensorCoreGEMM.cu
-	nvcc -o TCGemm -arch=sm_70 -lcublas -lcurand simpleTensorCoreGEMM.cu
+	nvcc -o TCGemm -arch=sm_$(SM_ARCH) -lcublas -lcurand simpleTensorCoreGEMM.cu
 
 clean:
 	rm -f TCGemm
