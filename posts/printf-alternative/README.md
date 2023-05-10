@@ -1,0 +1,3 @@
+# Printf-alternative
+
+Often times users may be tempted to use `printf` to signal soft warnings; however the compiler may reserve extra registers for `printf` even if the warning rarely occurs. This in turn can affect performance. The `CASerror.h` header-only library implements a performant soft-warning printf-alternative using cuda atomics and system pinned memory. An example of how to use this header-only library in action is provided in `main.cu`.
