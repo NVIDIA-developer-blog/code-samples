@@ -26,7 +26,7 @@
  */
 
 #include <stdio.h>
-#include "nvToolsExt.h"
+#include "nvtx3/nvToolsExt.h"
 #include <dlfcn.h>
 #include <cxxabi.h>
 
