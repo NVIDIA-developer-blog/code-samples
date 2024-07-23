@@ -1,4 +1,4 @@
-# Copyright (c) 1993-2015, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -24,28 +24,10 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-CC=gcc
-CXX=g++
-NVCC=nvcc
-
-NVTX_INCLUDE ?= $(CUDA_HOME)/include
-
-BINARIES=manual_nvtx compiler_inst_nvtx
-
-all: $(BINARIES)
-
-inst_nvtx.o: inst_nvtx.cpp Makefile
-	g++ -export-dynamic -fPIC -I$(NVTX_INCLUDE) -c inst_nvtx.cpp
-
-manual_nvtx: manual_nvtx.cu Makefile
-	nvcc -Xcompiler -export-dynamic -DUSE_NVTX -ldl -o manual_nvtx manual_nvtx.cu
-
-compiler_inst_nvtx: compiler_inst_nvtx.cu Makefile inst_nvtx.o
-	nvcc -Xcompiler -export-dynamic -Xcompiler -fPIC -Xcompiler -finstrument-functions inst_nvtx.o -ldl -o compiler_inst_nvtx compiler_inst_nvtx.cu 
-	
-clean:
-	rm -f *.o $(BINARIES)
-	
-run: $(BINARIES)
-	nsys profile --trace=cuda,nvtx -o compiler_inst_nvtx ./compiler_inst_nvtx
-	nsys profile --trace=cuda,nvtx -o manual_nvtx ./manual_nvtx
+if [ -v HPCSDK_RELEASE ]; then
+    echo "Running with NVIDIA HPC SDK"
+    if [ ! -v CUDA_HOME ] || [ ! -d ${CUDA_HOME} ]; then
+        export CUDA_HOME=$(nvc++ -cuda -printcudaversion |& grep "CUDA Path" | awk -F '=' '{print $2}')
+        echo "Setting CUDA_HOME=${CUDA_HOME}"
+    fi 
+fi
