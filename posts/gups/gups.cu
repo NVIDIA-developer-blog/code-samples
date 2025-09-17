@@ -458,7 +458,7 @@ int main(int argc, char* argv[])
         prop.sharedMemPerBlockOptin));
   }
 
-  size_t n = (size_t)(1 << logn);
+  size_t n = ((size_t)1) << logn;
   size_t working_set = (size_t)n * 100 / occupancy;
   if (accesses_per_elem == -1) {
     if (test_type == UPDATE || test_type == UPDATE_NO_LOOP
