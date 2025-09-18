@@ -484,14 +484,30 @@ int main(int argc, char* argv[])
   }
   size_t total_num_thread = thread * grid;
 
-  printf(
-      "Table size = %zu (%lf GB.)\nTotal number of threads %zu\nEach thread "
-      "access %d locations.\nNumber of iterations = %d\n",
-      working_set,
-      working_set * sizeof(benchtype) / 1e9,
-      total_num_thread,
-      accesses_per_elem,
-      repeats);
+  if (!shared_mem) {
+    printf(
+        "Table size = %zu (%lf GB.)\nTotal number of threads %zu\nEach thread "
+        "access %d locations.\nNumber of iterations = %d\n",
+        working_set,
+        working_set * sizeof(benchtype) / 1e9,
+        total_num_thread,
+        accesses_per_elem,
+        repeats);
+  } else {
+    // For shared memory tests, report the actual shared memory used
+    size_t total_shmem = grid * n_shmem * sizeof(benchtype);
+    printf(
+        "Table size = %zu (%lf MB.) [shared memory: %zu bytes per block x %zu blocks]\n"
+        "Total number of threads %zu\nEach thread "
+        "access %d locations.\nNumber of iterations = %d\n",
+        total_shmem / sizeof(benchtype),
+        total_shmem / 1e6,
+        n_shmem * sizeof(benchtype),
+        grid,
+        total_num_thread,
+        accesses_per_elem_sh,
+        repeats);
+  }
 
   benchtype* d_t;
   if (!shared_mem)
