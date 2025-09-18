@@ -596,3 +596,4 @@ int main(int argc, char* argv[])
     CUDA_RT_CALL(cudaFree(d_t));
   return 0;
 }
+
